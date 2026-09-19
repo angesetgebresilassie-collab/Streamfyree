@@ -42,6 +42,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     var query by remember { mutableStateOf("") }
     var showPlayer by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(0) }
 
     if (showPlayer && current != null) {
         ModalBottomSheet(onDismissRequest = { showPlayer = false }) {
@@ -62,7 +63,10 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     if (showQueue) {
         ModalBottomSheet(onDismissRequest = { showQueue = false }) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-                Text("Up next", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Up next", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = vm::clearQueue) { Text("Clear") }
+                }
                 Spacer(Modifier.height(14.dp))
                 if (queue.isEmpty()) {
                     Text("Your queue is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -106,6 +110,25 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
             }
 
             item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Home") })
+                    FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Library") })
+                }
+            }
+
+            if (tab == 1) {
+                item {
+                    Text("Your library", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
+                if (library.saved.isEmpty()) {
+                    item { Text("Save songs with the heart button to find them here.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                } else {
+                    items(library.saved, key = { it.id }) { track ->
+                        TrackRow(track, { vm.play(track) }, { vm.enqueue(track) }, { vm.unsaveTrack(track) }, true)
+                    }
+                }
+            } else {
+            item {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -146,7 +169,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                 }
             }
 
-            if (!state.loading && state.tracks.isEmpty()) {
+            if (tab == 0 && !state.loading && state.tracks.isEmpty()) {
                 item {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -169,7 +192,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                 }
             }
 
-            if (state.tracks.isNotEmpty()) {
+            if (tab == 0 && state.tracks.isNotEmpty()) {
                 item {
                     Text("Results", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
@@ -177,7 +200,9 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                     TrackRow(
                         track = track,
                         onPlay = { vm.play(track) },
-                        onQueue = { vm.enqueue(track) }
+                        onQueue = { vm.enqueue(track) },
+                        onSave = { if (vm.isSaved(track)) vm.unsaveTrack(track) else vm.saveTrack(track) },
+                        saved = vm.isSaved(track)
                     )
                 }
             }
@@ -215,7 +240,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 }
 
 @Composable
-private fun TrackRow(track: Track, onPlay: () -> Unit, onQueue: () -> Unit) {
+private fun TrackRow(track: Track, onPlay: () -> Unit, onQueue: () -> Unit, onSave: () -> Unit, saved: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -244,6 +269,7 @@ private fun TrackRow(track: Track, onPlay: () -> Unit, onQueue: () -> Unit) {
                     }
                 }
             }
+            IconButton(onClick = onSave) { Icon(if (saved) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Save") }
             IconButton(onClick = onQueue) { Icon(Icons.Default.Add, "Add to queue") }
             IconButton(onClick = onPlay) { Icon(Icons.Default.PlayCircleFilled, "Play") }
         }
