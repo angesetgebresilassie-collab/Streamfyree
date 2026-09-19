@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.net.Uri
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,6 +29,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
     private val savedKey = stringSetPreferencesKey("saved_tracks")
+    private val queueKey = stringPreferencesKey("queue_json")
 
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state
@@ -46,9 +48,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
+            val prefs = app.streamfyreeDataStore.data.first()
             _library.value = LibraryState(
-                app.streamfyreeDataStore.data.first()[savedKey].orEmpty().mapNotNull { decodeTrack(it) }
+                prefs[savedKey].orEmpty().mapNotNull { decodeTrack(it) }
             )
+            _queue.value = decodeQueue(prefs[queueKey])
         }
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(app, token).buildAsync()
@@ -92,6 +96,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             val resolved = if (track.streamUrl.isNullOrBlank()) runCatching { api.resolve(track.id) }.getOrElse { track } else track
             _current.value = resolved
             _queue.value = listOf(resolved) + _queue.value.filterNot { it.id == resolved.id }
+            persistQueue(_queue.value)
             val url = resolved.streamUrl
             controller?.let { mediaController ->
                 if (!url.isNullOrBlank()) {
@@ -112,10 +117,16 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun enqueue(track: Track) {
-        if (_queue.value.none { it.id == track.id }) _queue.value = _queue.value + track
+        if (_queue.value.none { it.id == track.id }) {
+            _queue.value = _queue.value + track
+            persistQueue(_queue.value)
+        }
     }
 
-    fun removeFromQueue(track: Track) { _queue.value = _queue.value.filterNot { it.id == track.id } }
+    fun removeFromQueue(track: Track) {
+        _queue.value = _queue.value.filterNot { it.id == track.id }
+        persistQueue(_queue.value)
+    }
 
     fun next() {
         playNextAutomatic()
@@ -158,7 +169,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     fun isSaved(track: Track) = _library.value.saved.any { it.id == track.id }
 
-    fun clearQueue() { _queue.value = emptyList() }
+    fun clearQueue() { _queue.value = emptyList(); persistQueue(emptyList()) }
 
     private fun persistLibrary(tracks: List<Track>) {
         viewModelScope.launch {
@@ -167,6 +178,22 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    private fun persistQueue(tracks: List<Track>) {
+        viewModelScope.launch {
+            getApplication<Application>().streamfyreeDataStore.edit { prefs ->
+                val array = org.json.JSONArray()
+                tracks.forEach { array.put(encodeTrack(it)) }
+                prefs[queueKey] = array.toString()
+            }
+        }
+    }
+
+    private fun decodeQueue(raw: String?): List<Track> = runCatching {
+        if (raw.isNullOrBlank()) return emptyList()
+        val array = org.json.JSONArray(raw)
+        List(array.length()) { decodeTrack(array.getString(it)) }.filterNotNull()
+    }.getOrDefault(emptyList())
 
     private fun encodeTrack(t: Track): String = JSONObject().apply {
         put("id", t.id); put("title", t.title); put("artist", t.artist); put("album", t.album)
