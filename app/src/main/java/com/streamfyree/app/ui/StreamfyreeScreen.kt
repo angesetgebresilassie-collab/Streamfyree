@@ -20,9 +20,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebSettings
+import android.webkit.WebView
 import coil3.compose.AsyncImage
 import com.streamfyree.app.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +37,6 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     var query by remember { mutableStateOf("") }
     var showPlayer by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     if (showPlayer && current != null) {
         ModalBottomSheet(onDismissRequest = { showPlayer = false }) {
@@ -45,7 +46,8 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                 onToggle = vm::togglePlayPause,
                 onPrevious = vm::previous,
                 onNext = vm::next,
-                onQueue = { showPlayer = false; showQueue = true }
+                onQueue = { showPlayer = false; showQueue = true },
+                mode = mode
             )
         }
     }
@@ -270,30 +272,82 @@ private fun FullPlayer(
     onToggle: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onQueue: () -> Unit
+    onQueue: () -> Unit,
+    mode: PlaybackMode
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AsyncImage(
-            model = track.artwork,
-            contentDescription = null,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(30.dp)),
-            contentScale = ContentScale.Crop
-        )
+        if (mode == PlaybackMode.YOUTUBE && track.youtubeUrl != null) {
+            YouTubeEmbed(
+                videoUrl = track.youtubeUrl,
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(26.dp))
+            )
+        } else {
+            AsyncImage(
+                model = track.artwork,
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(30.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
         Spacer(Modifier.height(22.dp))
         Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1)
         Text(track.artist, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(20.dp))
-        Slider(value = 0f, onValueChange = {}, enabled = false)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Previous") }
-            FilledIconButton(onClick = onToggle, modifier = Modifier.size(68.dp)) {
-                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play", Modifier.size(34.dp))
+        if (mode == PlaybackMode.NATIVE) {
+            Slider(value = 0f, onValueChange = {}, enabled = false)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Previous") }
+                FilledIconButton(onClick = onToggle, modifier = Modifier.size(68.dp)) {
+                    Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play", Modifier.size(34.dp))
+                }
+                IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Next") }
+                IconButton(onClick = onQueue) { Icon(Icons.Default.QueueMusic, "Queue") }
             }
-            IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Next") }
+        } else {
+            Text("Use the YouTube player controls for playback.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
             IconButton(onClick = onQueue) { Icon(Icons.Default.QueueMusic, "Queue") }
         }
     }
+}
+
+@Composable
+private fun YouTubeEmbed(videoUrl: String, modifier: Modifier = Modifier) {
+    val videoId = remember(videoUrl) {
+        Regex("[?&]v=([^&]+)").find(videoUrl)?.groupValues?.get(1)
+            ?: videoUrl.substringAfterLast("/").substringBefore("?")
+    }
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                setBackgroundColor(android.graphics.Color.BLACK)
+            }
+        },
+        update = { webView ->
+            val html = """
+                <!doctype html>
+                <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+                <style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#000}</style>
+                </head><body>
+                <iframe src="https://www.youtube-nocookie.com/embed/$videoId?playsinline=1&autoplay=1&rel=0"
+                  allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+                </body></html>
+            """.trimIndent()
+            webView.loadDataWithBaseURL(
+                "https://www.youtube-nocookie.com/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
+            )
+        }
+    )
 }
