@@ -274,7 +274,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 }
 
 @Composable
-private fun NavigationBarScope.NavItem(
+private fun NavItem(
     selected: Boolean,
     onClick: () -> Unit,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
