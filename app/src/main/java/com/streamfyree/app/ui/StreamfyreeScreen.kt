@@ -1,9 +1,11 @@
 package com.streamfyree.app.ui
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,49 +15,285 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.streamfyree.app.*
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StreamfyreeScreen(vm:MusicViewModel){
- val state by vm.state.collectAsState(); val mode by vm.mode.collectAsState(); val current by vm.current.collectAsState()
- var query by remember{mutableStateOf("")}
- Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface,MaterialTheme.colorScheme.surfaceContainerHigh,MaterialTheme.colorScheme.surface)))){
-  Column(Modifier.fillMaxSize().padding(horizontal=18.dp)){
-   Spacer(Modifier.height(42.dp)); Text("Streamfyree",style=MaterialTheme.typography.headlineLarge)
-   Text("Your music, your way",color=MaterialTheme.colorScheme.onSurfaceVariant)
-   Spacer(Modifier.height(18.dp))
-   OutlinedTextField(value=query,onValueChange={query=it},modifier=Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Search songs, artists, albums…")},leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={IconButton(onClick={vm.search(query)}){Icon(Icons.Default.ArrowForward,"Search")}},shape=RoundedCornerShape(22.dp))
-   Spacer(Modifier.height(14.dp))
-   Row(verticalAlignment=Alignment.CenterVertically){
-    Text("Playback",style=MaterialTheme.typography.titleMedium); Spacer(Modifier.width(10.dp))
-    FilterChip(selected=mode==PlaybackMode.NATIVE,onClick={vm.setMode(PlaybackMode.NATIVE)},label={Text("Native")})
-    Spacer(Modifier.width(8.dp))
-    FilterChip(selected=mode==PlaybackMode.YOUTUBE,onClick={vm.setMode(PlaybackMode.YOUTUBE)},label={Text("YouTube")})
-   }
-   Spacer(Modifier.height(12.dp)); if(state.loading)LinearProgressIndicator(Modifier.fillMaxWidth())
-   state.error?.let{Text(it,color=MaterialTheme.colorScheme.error)}
-   LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(bottom=120.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-    items(state.tracks,key={it.id}){track->TrackRow(track){vm.play(track)}}
-   }
-  }
-  current?.let{track->
-   Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),shape=RoundedCornerShape(24.dp),tonalElevation=8.dp){
-    Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){
-     AsyncImage(model=track.artwork,contentDescription=null,modifier=Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)))
-     Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)){Text(track.title,maxLines=1);Text(track.artist,maxLines=1,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-     IconButton(onClick={if(vm.player.isPlaying)vm.player.pause()else vm.player.play()}){Icon(if(vm.player.isPlaying)Icons.Default.Pause else Icons.Default.PlayArrow,null)}
+fun StreamfyreeScreen(vm: MusicViewModel) {
+    val state by vm.state.collectAsState()
+    val mode by vm.mode.collectAsState()
+    val current by vm.current.collectAsState()
+    val queue by vm.queue.collectAsState()
+    val isPlaying by vm.isPlaying.collectAsState()
+    var query by remember { mutableStateOf("") }
+    var showPlayer by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    if (showPlayer && current != null) {
+        ModalBottomSheet(onDismissRequest = { showPlayer = false }) {
+            FullPlayer(
+                track = current!!,
+                isPlaying = isPlaying,
+                onToggle = vm::togglePlayPause,
+                onPrevious = vm::previous,
+                onNext = vm::next,
+                onQueue = { showPlayer = false; showQueue = true }
+            )
+        }
     }
-   }
-  }
- }
+
+    if (showQueue) {
+        ModalBottomSheet(onDismissRequest = { showQueue = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Up next", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                if (queue.isEmpty()) {
+                    Text("Your queue is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(queue, key = { it.id }) { track ->
+                            QueueRow(track, current?.id == track.id, { vm.play(track) }) {
+                                vm.removeFromQueue(track)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                listOf(Color(0xFF17132B), Color(0xFF0D0D12), Color(0xFF08080B))
+            )
+        )
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 44.dp, bottom = 150.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("STREAMFYREE", letterSpacing = 3.sp, style = MaterialTheme.typography.labelLarge)
+                        Text("Find your next favorite.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(shape = CircleShape, color = Color.White.copy(alpha = .08f)) {
+                        IconButton(onClick = { showQueue = true }) {
+                            Icon(Icons.Default.QueueMusic, "Queue")
+                        }
+                    }
+                }
+            }
+
+            item {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Songs, artists, albums…") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = {
+                        IconButton(onClick = { vm.search(query) }) {
+                            Icon(Icons.Default.ArrowForward, "Search")
+                        }
+                    },
+                    shape = RoundedCornerShape(22.dp)
+                )
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = mode == PlaybackMode.NATIVE,
+                        onClick = { vm.setMode(PlaybackMode.NATIVE) },
+                        label = { Text("Native audio") },
+                        leadingIcon = { Icon(Icons.Default.Headphones, null, Modifier.size(18.dp)) }
+                    )
+                    FilterChip(
+                        selected = mode == PlaybackMode.YOUTUBE,
+                        onClick = { vm.setMode(PlaybackMode.YOUTUBE) },
+                        label = { Text("YouTube") },
+                        leadingIcon = { Icon(Icons.Default.PlayCircle, null, Modifier.size(18.dp)) }
+                    )
+                }
+            }
+
+            item {
+                if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                state.error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+
+            if (!state.loading && state.tracks.isEmpty()) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(28.dp),
+                        color = Color.White.copy(alpha = .06f)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Default.GraphicEq, null, Modifier.size(54.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Text("Search the world of music", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Artwork and metadata come from iTunes while playable audio is resolved by your Streamfyree backend.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.tracks.isNotEmpty()) {
+                item {
+                    Text("Results", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                items(state.tracks, key = { it.id }) { track ->
+                    TrackRow(
+                        track = track,
+                        onPlay = { vm.play(track) },
+                        onQueue = { vm.enqueue(track) }
+                    )
+                }
+            }
+        }
+
+        current?.let { track ->
+            Surface(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF24212F).copy(alpha = .97f),
+                tonalElevation = 8.dp
+            ) {
+                Row(
+                    Modifier.clickable { showPlayer = true }.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = track.artwork,
+                        contentDescription = null,
+                        modifier = Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(track.title, maxLines = 1, fontWeight = FontWeight.SemiBold)
+                        Text(track.artist, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = vm::togglePlayPause) {
+                        Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play")
+                    }
+                }
+            }
+        }
+    }
 }
-@Composable private fun TrackRow(track:Track,onClick:()->Unit){
- Surface(Modifier.fillMaxWidth().clickable(onClick=onClick),shape=RoundedCornerShape(20.dp),tonalElevation=2.dp){
-  Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){
-   AsyncImage(model=track.artwork,contentDescription=null,modifier=Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)))
-   Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)){Text(track.title,maxLines=1,style=MaterialTheme.typography.titleMedium);Text(track.artist,maxLines=1,color=MaterialTheme.colorScheme.onSurfaceVariant);if(track.lyricVideo)Text("Lyric video",style=MaterialTheme.typography.labelSmall)}
-   Icon(Icons.Default.PlayCircle,null)
-  }
- }
+
+@Composable
+private fun TrackRow(track: Track, onPlay: () -> Unit, onQueue: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White.copy(alpha = .055f)
+    ) {
+        Row(
+            Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = track.artwork,
+                contentDescription = null,
+                modifier = Modifier.size(70.dp).clip(RoundedCornerShape(17.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f)) {
+                Text(track.title, maxLines = 1, fontWeight = FontWeight.SemiBold)
+                Text(track.artist, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (track.lyricVideo) {
+                        Text("LYRIC", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (track.album.isNotBlank()) {
+                        Text(track.album, maxLines = 1, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            IconButton(onClick = onQueue) { Icon(Icons.Default.Add, "Add to queue") }
+            IconButton(onClick = onPlay) { Icon(Icons.Default.PlayCircleFilled, "Play") }
+        }
+    }
+}
+
+@Composable
+private fun QueueRow(track: Track, selected: Boolean, onPlay: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = track.artwork,
+            contentDescription = null,
+            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(track.title, maxLines = 1, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+            Text(track.artist, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        IconButton(onClick = onPlay) { Icon(Icons.Default.PlayArrow, "Play") }
+        IconButton(onClick = onRemove) { Icon(Icons.Default.Close, "Remove") }
+    }
+}
+
+@Composable
+private fun FullPlayer(
+    track: Track,
+    isPlaying: Boolean,
+    onToggle: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onQueue: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AsyncImage(
+            model = track.artwork,
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(30.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(Modifier.height(22.dp))
+        Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(track.artist, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(20.dp))
+        Slider(value = 0f, onValueChange = {}, enabled = false)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Previous") }
+            FilledIconButton(onClick = onToggle, modifier = Modifier.size(68.dp)) {
+                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play", Modifier.size(34.dp))
+            }
+            IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Next") }
+            IconButton(onClick = onQueue) { Icon(Icons.Default.QueueMusic, "Queue") }
+        }
+    }
 }
