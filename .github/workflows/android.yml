@@ -16,7 +16,15 @@ jobs:
         with:
           gradle-version: "8.11.1"
       - run: gradle --version
-      - run: gradle clean assembleDebug --stacktrace --warning-mode all
+      - name: Build debug APK
+        env:
+          STREAM_API_BASE: ${{ vars.STREAM_API_BASE }}
+        run: |
+          if [ -n "$STREAM_API_BASE" ]; then
+            gradle clean assembleDebug -PstreamApiBase="$STREAM_API_BASE" --stacktrace --warning-mode all
+          else
+            gradle clean assembleDebug --stacktrace --warning-mode all
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: streamfyree-debug-apk
