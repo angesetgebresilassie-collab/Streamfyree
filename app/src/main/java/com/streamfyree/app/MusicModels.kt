@@ -12,7 +12,7 @@ data class Track(
     val lyricVideo: Boolean = false
 )
 
-enum class PlaybackMode { NATIVE, YOUTUBE }
+enum class PlaybackMode { AUTO, NATIVE, ONLINE }
 
 data class SearchState(
     val query: String = "",
