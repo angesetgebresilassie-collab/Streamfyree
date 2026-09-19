@@ -57,20 +57,20 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(app, token).buildAsync()
         controllerFuture.addListener({
-            runCatching { controller = controllerFuture.get() }.onSuccess { mediaController ->
-                mediaController.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        _isPlaying.value = isPlaying
-                    }
-                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                        _current.value = _queue.value.firstOrNull { it.id == mediaItem?.mediaId }
-                    }
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) playNextAutomatic()
-                    }
-                })
-                _isPlaying.value = mediaController.isPlaying
-            }
+            val mediaController = runCatching { controllerFuture.get() }.getOrNull() ?: return@addListener
+            controller = mediaController
+            mediaController.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    _isPlaying.value = isPlaying
+                }
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    _current.value = _queue.value.firstOrNull { it.id == mediaItem?.mediaId }
+                }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_ENDED) playNextAutomatic()
+                }
+            })
+            _isPlaying.value = mediaController.isPlaying
         }, androidx.core.content.ContextCompat.getMainExecutor(app))
     }
 
