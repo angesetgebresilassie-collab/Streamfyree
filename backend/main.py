@@ -193,11 +193,17 @@ async def search(request: Request, q: str = Query(min_length=1, max_length=120))
 @app.get("/api/track/{video_id}")
 async def track(video_id: str, request: Request):
     await _rate_limit(request)
-    results = await search(request, video_id)
-    match = next((item for item in results if item["id"] == video_id), None)
-    if match:
-        return match
-    raise HTTPException(404, "Track not found")
+    resolved = await _resolve_cached(video_id)
+    return {
+        "id": resolved["id"],
+        "title": resolved.get("title", ""),
+        "artist": resolved.get("artist", ""),
+        "album": resolved.get("album", ""),
+        "artwork": resolved.get("artwork", ""),
+        "youtube_url": resolved.get("youtube_url", ""),
+        "duration_ms": resolved.get("duration_ms", 0),
+        "stream_url": resolved.get("stream_url"),
+    }
 
 
 @app.get("/api/resolve/{video_id}")
