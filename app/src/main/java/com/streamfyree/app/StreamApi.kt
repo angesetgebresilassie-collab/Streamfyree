@@ -10,27 +10,25 @@ import java.io.IOException
 class StreamApi {
     private val client = OkHttpClient()
 
-    fun search(query: String): List<Track> {
-        val url = BuildConfig.STREAM_API_BASE.trimEnd('/') + "/search?q=" + Uri.encode(query)
+    private fun baseUrl(): String =
+        BuildConfig.STREAM_API_BASE.trim().trimEnd('/').ifBlank {
+            throw IOException("Streamfyree backend is not configured")
+        }
+
+    fun searchYoutube(query: String): List<Track> {
+        val url = baseUrl() + "/search?q=" + Uri.encode(query)
         val array = JSONArray(get(url))
         return List(array.length()) { trackFromJson(array.getJSONObject(it)) }
     }
 
     fun resolve(id: String): Track {
-        val url = BuildConfig.STREAM_API_BASE.trimEnd('/') + "/resolve/" + Uri.encode(id)
-        return trackFromJson(JSONObject(get(url)))
-    }
-
-    fun track(id: String): Track {
-        val url = BuildConfig.STREAM_API_BASE.trimEnd('/') + "/track/" + Uri.encode(id)
+        val url = baseUrl() + "/resolve/" + Uri.encode(id)
         return trackFromJson(JSONObject(get(url)))
     }
 
     private fun get(url: String): String {
-        val response = client.newCall(Request.Builder().url(url).build()).execute()
-        if (!response.isSuccessful) {
-            throw IOException("Server returned " + response.code)
-        }
+        val response = client.newCall(Request.Builder().url(url).build().execute())
+        if (!response.isSuccessful) throw IOException("Streamfyree backend returned " + response.code)
         return response.body?.string() ?: throw IOException("Empty server response")
     }
 
