@@ -34,6 +34,11 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     val current by vm.current.collectAsState()
     val queue by vm.queue.collectAsState()
     val isPlaying by vm.isPlaying.collectAsState()
+    val progress by vm.progress.collectAsState()
+    LaunchedEffect(isPlaying, current?.id) {
+        while (isPlaying) { vm.refreshProgress(); kotlinx.coroutines.delay(500) }
+        vm.refreshProgress()
+    }
     var query by remember { mutableStateOf("") }
     var showPlayer by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
@@ -47,7 +52,9 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                 onPrevious = vm::previous,
                 onNext = vm::next,
                 onQueue = { showPlayer = false; showQueue = true },
-                mode = mode
+                mode = mode,
+                progress = progress,
+                onSeek = vm::seekTo
             )
         }
     }
@@ -273,7 +280,9 @@ private fun FullPlayer(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onQueue: () -> Unit,
-    mode: PlaybackMode
+    mode: PlaybackMode,
+    progress: PlaybackProgress,
+    onSeek: (Long) -> Unit
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp),
@@ -297,7 +306,8 @@ private fun FullPlayer(
         Text(track.artist, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(20.dp))
         if (mode == PlaybackMode.NATIVE) {
-            Slider(value = 0f, onValueChange = {}, enabled = false)
+            val duration = progress.durationMs.coerceAtLeast(1)
+            Slider(value = progress.positionMs.coerceIn(0, duration).toFloat(), onValueChange = { onSeek(it.toLong()) }, valueRange = 0f..duration.toFloat())
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Previous") }
                 FilledIconButton(onClick = onToggle, modifier = Modifier.size(68.dp)) {
