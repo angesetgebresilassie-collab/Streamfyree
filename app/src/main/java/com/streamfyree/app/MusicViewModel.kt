@@ -20,40 +20,53 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 private val Application.streamfyreeDataStore by preferencesDataStore("streamfyree")
 
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val api = StreamApi()
+    private val itunes = ItunesApi()
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
+
     private val savedKey = stringSetPreferencesKey("saved_tracks")
     private val queueKey = stringPreferencesKey("queue_json")
+    private val historyKey = stringPreferencesKey("history_json")
 
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state
-    private val _mode = MutableStateFlow(PlaybackMode.NATIVE)
+
+    private val _mode = MutableStateFlow(PlaybackMode.AUTO)
     val mode: StateFlow<PlaybackMode> = _mode
+
     private val _current = MutableStateFlow<Track?>(null)
     val current: StateFlow<Track?> = _current
+
     private val _queue = MutableStateFlow<List<Track>>(emptyList())
     val queue: StateFlow<List<Track>> = _queue
+
     private val _library = MutableStateFlow(LibraryState())
     val library: StateFlow<LibraryState> = _library
+
+    private val _history = MutableStateFlow<List<Track>>(emptyList())
+    val history: StateFlow<List<Track>> = _history
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
+
     private val _progress = MutableStateFlow(PlaybackProgress())
     val progress: StateFlow<PlaybackProgress> = _progress
 
     init {
         viewModelScope.launch {
             val prefs = app.streamfyreeDataStore.data.first()
-            _library.value = LibraryState(
-                prefs[savedKey].orEmpty().mapNotNull { decodeTrack(it) }
-            )
-            _queue.value = decodeQueue(prefs[queueKey])
+            _library.value = LibraryState(prefs[savedKey].orEmpty().mapNotNull { decodeTrack(it) })
+            _queue.value = decodeList(prefs[queueKey])
+            _history.value = decodeList(prefs[historyKey]).take(20)
         }
+
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(app, token).buildAsync()
         controllerFuture.addListener({
@@ -64,7 +77,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     _isPlaying.value = isPlaying
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    _current.value = _queue.value.firstOrNull { it.id == mediaItem?.mediaId }
+                    _current.value = _queue.value.firstOrNull { it.id == mediaItem?.mediaId } ?: _current.value
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_ENDED) playNextAutomatic()
@@ -80,25 +93,46 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         if (query.isBlank()) return
         _state.value = _state.value.copy(query = query, loading = true, error = null)
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { api.search(query) }
-                .onSuccess { _state.value = _state.value.copy(loading = false, tracks = it, error = null) }
-                .onFailure { _state.value = _state.value.copy(loading = false, error = it.message ?: "Search failed") }
+            runCatching { itunes.search(query) }
+                .onSuccess { tracks ->
+                    _state.value = _state.value.copy(loading = false, tracks = tracks, error = null)
+                }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(loading = false, error = error.message ?: "iTunes search failed")
+                }
         }
     }
 
     fun play(track: Track) {
-        if (_mode.value == PlaybackMode.YOUTUBE) {
-            _current.value = track
-            _queue.value = listOf(track) + _queue.value.filterNot { it.id == track.id }
-            return
+        when (_mode.value) {
+            PlaybackMode.ONLINE -> playOnline(track)
+            PlaybackMode.NATIVE -> playNative(track, false)
+            PlaybackMode.AUTO -> playNative(track, true)
         }
+    }
+
+    private fun playOnline(track: Track) {
+        _current.value = track
+        _queue.value = listOf(track) + _queue.value.filterNot { it.id == track.id }
+        persistQueue(_queue.value)
+        recordPlayed(track)
+        _state.value = _state.value.copy(error = null)
+    }
+
+    private fun playNative(track: Track, fallbackToOnline: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val resolved = if (track.streamUrl.isNullOrBlank()) runCatching { api.resolve(track.id) }.getOrElse { track } else track
-            _current.value = resolved
-            _queue.value = listOf(resolved) + _queue.value.filterNot { it.id == resolved.id }
-            persistQueue(_queue.value)
-            val url = resolved.streamUrl
-            controller?.let { mediaController ->
+            val result = runCatching {
+                val candidates = api.searchYoutube(track.artist + " " + track.title + " lyrics")
+                val candidate = candidates.firstOrNull() ?: error("No lyric version found")
+                if (candidate.streamUrl.isNullOrBlank()) api.resolve(candidate.id) else candidate
+            }
+
+            result.onSuccess { resolved ->
+                _current.value = resolved
+                _queue.value = listOf(resolved) + _queue.value.filterNot { it.id == resolved.id }
+                persistQueue(_queue.value)
+                recordPlayed(resolved)
+                val url = resolved.streamUrl
                 if (!url.isNullOrBlank()) {
                     val metadata = MediaMetadata.Builder()
                         .setTitle(resolved.title)
@@ -106,11 +140,25 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         .setAlbumTitle(resolved.album)
                         .setArtworkUri(resolved.artwork?.let(Uri::parse))
                         .build()
-                    mediaController.setMediaItem(
-                        MediaItem.Builder().setMediaId(resolved.id).setUri(url).setMediaMetadata(metadata).build()
-                    )
-                    mediaController.prepare()
-                    mediaController.play()
+                    controller?.let { mediaController ->
+                        mediaController.setMediaItem(
+                            MediaItem.Builder()
+                                .setMediaId(resolved.id)
+                                .setUri(url)
+                                .setMediaMetadata(metadata)
+                                .build()
+                        )
+                        mediaController.prepare()
+                        mediaController.play()
+                    }
+                }
+                _state.value = _state.value.copy(error = null)
+            }.onFailure { error ->
+                if (fallbackToOnline) {
+                    playOnline(track)
+                    _state.value = _state.value.copy(error = "Native audio is unavailable, so Auto switched to Online.")
+                } else {
+                    _state.value = _state.value.copy(error = error.message ?: "Native playback failed")
                 }
             }
         }
@@ -128,9 +176,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         persistQueue(_queue.value)
     }
 
-    fun next() {
-        playNextAutomatic()
-    }
+    fun next() { playNextAutomatic() }
 
     private fun playNextAutomatic() {
         val index = _queue.value.indexOfFirst { it.id == _current.value?.id }
@@ -142,34 +188,42 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         if (index > 0) play(_queue.value[index - 1])
     }
 
-    fun togglePlayPause() { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
+    fun togglePlayPause() {
+        controller?.let { if (it.isPlaying) it.pause() else it.play() }
+    }
 
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs.coerceAtLeast(0)) }
 
     fun refreshProgress() {
-        controller?.let {
-            _progress.value = PlaybackProgress(it.currentPosition, it.duration.coerceAtLeast(0))
-        }
+        controller?.let { _progress.value = PlaybackProgress(it.currentPosition, it.duration.coerceAtLeast(0)) }
     }
 
     fun saveTrack(track: Track) {
-        val current = _library.value.saved.toMutableList()
-        if (current.none { it.id == track.id }) {
-            current += track
-            _library.value = LibraryState(current)
-            persistLibrary(current)
+        val currentSaved = _library.value.saved.toMutableList()
+        if (currentSaved.none { it.id == track.id }) {
+            currentSaved += track
+            _library.value = LibraryState(currentSaved)
+            persistLibrary(currentSaved)
         }
     }
 
     fun unsaveTrack(track: Track) {
-        val current = _library.value.saved.filterNot { it.id == track.id }
-        _library.value = LibraryState(current)
-        persistLibrary(current)
+        val currentSaved = _library.value.saved.filterNot { it.id == track.id }
+        _library.value = LibraryState(currentSaved)
+        persistLibrary(currentSaved)
     }
 
     fun isSaved(track: Track) = _library.value.saved.any { it.id == track.id }
 
-    fun clearQueue() { _queue.value = emptyList(); persistQueue(emptyList()) }
+    fun clearQueue() {
+        _queue.value = emptyList()
+        persistQueue(emptyList())
+    }
+
+    private fun recordPlayed(track: Track) {
+        _history.value = (listOf(track) + _history.value.filterNot { it.id == track.id }).take(20)
+        persistQueue(_history.value, historyKey)
+    }
 
     private fun persistLibrary(tracks: List<Track>) {
         viewModelScope.launch {
@@ -179,26 +233,36 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun persistQueue(tracks: List<Track>) {
+    private fun persistQueue(tracks: List<Track>, key: androidx.datastore.preferences.core.Preferences.Key<String> = queueKey) {
         viewModelScope.launch {
             getApplication<Application>().streamfyreeDataStore.edit { prefs ->
-                val array = org.json.JSONArray()
-                tracks.forEach { array.put(encodeTrack(it)) }
-                prefs[queueKey] = array.toString()
+                prefs[key] = encodeList(tracks)
             }
         }
     }
 
-    private fun decodeQueue(raw: String?): List<Track> = runCatching {
+    private fun encodeList(tracks: List<Track>): String {
+        val array = JSONArray()
+        tracks.forEach { array.put(encodeTrack(it)) }
+        return array.toString()
+    }
+
+    private fun decodeList(raw: String?): List<Track> = runCatching {
         if (raw.isNullOrBlank()) return emptyList()
-        val array = org.json.JSONArray(raw)
+        val array = JSONArray(raw)
         List(array.length()) { decodeTrack(array.getString(it)) }.filterNotNull()
     }.getOrDefault(emptyList())
 
-    private fun encodeTrack(t: Track): String = JSONObject().apply {
-        put("id", t.id); put("title", t.title); put("artist", t.artist); put("album", t.album)
-        put("artwork", t.artwork ?: JSONObject.NULL); put("duration", t.durationMs)
-        put("youtube", t.youtubeUrl ?: JSONObject.NULL); put("lyric", t.lyricVideo)
+    private fun encodeTrack(track: Track): String = JSONObject().apply {
+        put("id", track.id)
+        put("title", track.title)
+        put("artist", track.artist)
+        put("album", track.album)
+        put("artwork", track.artwork ?: JSONObject.NULL)
+        put("duration", track.durationMs)
+        put("youtube", track.youtubeUrl ?: JSONObject.NULL)
+        put("stream", track.streamUrl ?: JSONObject.NULL)
+        put("lyric", track.lyricVideo)
     }.toString()
 
     private fun decodeTrack(raw: String): Track? = runCatching {
@@ -211,6 +275,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             artwork = o.optString("artwork").ifBlank { null },
             durationMs = o.optLong("duration"),
             youtubeUrl = o.optString("youtube").ifBlank { null },
+            streamUrl = o.optString("stream").ifBlank { null },
             lyricVideo = o.optBoolean("lyric")
         )
     }.getOrNull()
