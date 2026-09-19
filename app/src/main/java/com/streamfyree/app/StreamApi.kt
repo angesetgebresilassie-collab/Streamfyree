@@ -27,7 +27,7 @@ class StreamApi {
     }
 
     private fun get(url: String): String {
-        val response = client.newCall(Request.Builder().url(url).build().execute())
+        val response = client.newCall(Request.Builder().url(url).build()).execute()
         if (!response.isSuccessful) throw IOException("Streamfyree backend returned " + response.code)
         return response.body?.string() ?: throw IOException("Empty server response")
     }
