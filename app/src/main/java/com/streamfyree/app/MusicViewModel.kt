@@ -61,6 +61,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                         _current.value = _queue.value.firstOrNull { it.id == mediaItem?.mediaId }
                     }
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED) playNextAutomatic()
+                    }
                 })
                 _isPlaying.value = mediaController.isPlaying
             }
@@ -115,6 +118,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     fun removeFromQueue(track: Track) { _queue.value = _queue.value.filterNot { it.id == track.id } }
 
     fun next() {
+        playNextAutomatic()
+    }
+
+    private fun playNextAutomatic() {
         val index = _queue.value.indexOfFirst { it.id == _current.value?.id }
         if (index >= 0 && index + 1 < _queue.value.size) play(_queue.value[index + 1])
     }
@@ -150,6 +157,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun isSaved(track: Track) = _library.value.saved.any { it.id == track.id }
+
+    fun clearQueue() { _queue.value = emptyList() }
 
     private fun persistLibrary(tracks: List<Track>) {
         viewModelScope.launch {
