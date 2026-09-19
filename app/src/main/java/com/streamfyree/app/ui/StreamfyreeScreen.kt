@@ -35,6 +35,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     val queue by vm.queue.collectAsState()
     val isPlaying by vm.isPlaying.collectAsState()
     val progress by vm.progress.collectAsState()
+    val library by vm.library.collectAsState()
     LaunchedEffect(isPlaying, current?.id) {
         while (isPlaying) { vm.refreshProgress(); kotlinx.coroutines.delay(500) }
         vm.refreshProgress()
