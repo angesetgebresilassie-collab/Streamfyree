@@ -593,7 +593,7 @@ private fun GlassCard(shape: RoundedCornerShape, modifier: Modifier, content: @C
 @Composable
 private fun Pill(text: String, tint: Color) {
     Surface(
-        RoundedCornerShape(9.dp),
+        shape = RoundedCornerShape(9.dp),
         color = tint.copy(alpha = .15f),
         border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = .36f))
     ) {
