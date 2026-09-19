@@ -207,6 +207,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                     )
                 }
             }
+            }
         }
 
         current?.let { track ->
