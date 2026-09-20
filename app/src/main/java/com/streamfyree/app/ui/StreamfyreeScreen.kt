@@ -121,10 +121,14 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                         }
                     }
                     item {
-                        SearchBar(query, { query = it }) {
-                            tab = 1
-                            vm.search(query)
-                        }
+                        SearchBar(
+                            value = query,
+                            onValueChange = { query = it },
+                            onSearch = {
+                                tab = 1
+                                vm.search(query)
+                            }
+                        )
                     }
                     item { PlaybackModes(mode, vm::setMode) }
                     state.error?.let { message ->
@@ -280,19 +284,26 @@ private fun NavItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String
 ) {
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        icon = { Icon(icon, null) },
-        label = { Text(label) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = BG,
-            selectedTextColor = ACCENT,
-            indicatorColor = ACCENT,
-            unselectedIconColor = WARM_WHITE.copy(alpha = .65f),
-            unselectedTextColor = WARM_WHITE.copy(alpha = .65f)
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (selected) BG else WARM_WHITE.copy(alpha = .65f)
         )
-    )
+        Text(
+            label,
+            color = if (selected) ACCENT else WARM_WHITE.copy(alpha = .65f),
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
 }
 
 @Composable
@@ -553,7 +564,7 @@ private fun androidx.compose.foundation.layout.BoxScope.MiniPlayer(track: Track,
 private fun ArtworkImage(track: Track, tint: Color, onTint: (Color) -> Unit, modifier: Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val request = remember(track.artwork) {
-        ImageRequest.Builder(context).data(track.artwork).allowHardware(false).build()
+        ImageRequest.Builder(context).data(track.artwork).build()
     }
     Box(modifier.background(tint.copy(alpha = .12f))) {
         AsyncImage(
@@ -564,7 +575,10 @@ private fun ArtworkImage(track: Track, tint: Color, onTint: (Color) -> Unit, mod
             onSuccess = { success ->
                 val bitmap = runCatching { success.result.image.toBitmap() }.getOrNull() ?: return@AsyncImage
                 Palette.from(bitmap).generate { palette ->
-                    val swatch = palette.vibrantSwatch ?: palette.lightVibrantSwatch ?: palette.mutedSwatch ?: palette.dominantSwatch
+                    val swatch = palette?.vibrantSwatch
+                        ?: palette?.lightVibrantSwatch
+                        ?: palette?.mutedSwatch
+                        ?: palette?.dominantSwatch
                     swatch?.rgb?.let { onTint(Color(it)) }
                 }
             }
