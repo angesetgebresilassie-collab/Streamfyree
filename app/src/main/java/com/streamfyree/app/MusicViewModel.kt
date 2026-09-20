@@ -26,7 +26,7 @@ import org.json.JSONObject
 private val Application.streamfyreeDataStore by preferencesDataStore("streamfyree")
 
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
-    private val api = StreamApi()
+    private val ytDlp = YtDlpBridge(app)
     private val itunes = ItunesApi()
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
@@ -145,13 +145,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private fun playOnline(track: Track) {
         viewModelScope.launch(Dispatchers.IO) {
             val chosen = runCatching {
-                val candidate = api.searchYoutube("${track.artist} ${track.title} lyrics").firstOrNull()
-                    ?: error("No online version found")
-                track.copy(
-                    youtubeUrl = candidate.youtubeUrl
-                        ?: "https://www.youtube.com/watch?v=${candidate.id}",
-                    lyricVideo = true
-                )
+                val resolved = ytDlp.findLyricsAndResolve(track.artist, track.title)
+                track.copy(\n                    youtubeUrl = resolved.youtubeUrl,\n                    streamUrl = resolved.streamUrl,\n                    lyricVideo = true\n                )
             }.getOrElse { error ->
                 _state.value = _state.value.copy(
                     error = error.message ?: "Online playback search failed"
@@ -169,9 +164,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private fun playNative(track: Track, fallbackToOnline: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val result = runCatching {
-                val candidates = api.searchYoutube(track.artist + " " + track.title + " lyrics")
-                val candidate = candidates.firstOrNull() ?: error("No lyric version found")
-                if (candidate.streamUrl.isNullOrBlank()) api.resolve(candidate.id) else candidate
+                val resolved = ytDlp.findLyricsAndResolve(track.artist, track.title)\n                track.copy(\n                    id = resolved.id,\n                    title = resolved.title,\n                    artist = resolved.artist,\n                    youtubeUrl = resolved.youtubeUrl,\n                    streamUrl = resolved.streamUrl,\n                    durationMs = resolved.durationMs,\n                    lyricVideo = true\n                )
             }
 
             result.onSuccess { resolved ->
