@@ -143,7 +143,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
             QueueSheet(
                 queue = queue,
                 currentId = current?.id,
-                onPlay = vm::play,
+                onPlay = { track -> showPlayer = true; vm.play(track) },
                 onRemove = vm::removeFromQueue,
                 onClear = vm::clearQueue
             )
@@ -218,7 +218,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                             SongCard(
                                 track = track,
                                 saved = vm.isSaved(track),
-                                onPlay = { vm.play(track) },
+                                onPlay = { showPlayer = true; vm.play(track) },
                                 onQueue = { vm.enqueue(track) },
                                 onSave = {
                                     if (vm.isSaved(track)) vm.unsaveTrack(track)
@@ -247,7 +247,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                         item {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(history.take(8), key = { "hist-" + it.id }) { track ->
-                                    HistoryTile(track) { vm.play(track) }
+                                    HistoryTile(track) { showPlayer = true; vm.play(track) }
                                 }
                             }
                         }
@@ -562,7 +562,7 @@ private fun QuickPicksGrid(tracks: List<Track>, onPlay: (Track) -> Unit) {
         tracks.chunked(2).forEach { rowTracks ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 rowTracks.forEach { track ->
-                    QuickPickTile(track, Modifier.weight(1f)) { onPlay(track) }
+                    QuickPickTile(track, Modifier.weight(1f)) { showPlayer = true; onPlay(track) }
                 }
                 if (rowTracks.size == 1) Spacer(Modifier.weight(1f))
             }
