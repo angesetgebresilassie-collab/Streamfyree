@@ -58,24 +58,31 @@ import com.streamfyree.app.*
 
 // ---- Palette: warm brown, Spotify-shaped layout ----
 private val BG = Color(0xFF0A0705)
-private val BG2 = Color(0xFF130E0A)
+private val BG2 = Color(0xFF17100B)
 private val WARM_WHITE = Color(0xFFF3EAE1)
 private val MUTED = Color(0xFFAD9F94)
 private val ACCENT = Color(0xFFE0A662)
 private val ACCENT2 = Color(0xFF8C5A2B)
-private val GLASS = Color(0xFF1B1512).copy(alpha = .60f)
+private val CARD = Color(0xFF1C1611)
+private val CARD_RAISED = Color(0xFF241B14)
+private val CHIP_OFF = Color(0xFF211A14)
 
-private data class GenreTile(val label: String, val colors: List<Color>)
+private val R_XS = RoundedCornerShape(4.dp)
+private val R_SM = RoundedCornerShape(6.dp)
+private val R_MD = RoundedCornerShape(8.dp)
+private val R_PILL = RoundedCornerShape(50)
+
+private data class GenreTile(val label: String, val color: Color)
 
 private val genreTiles = listOf(
-    GenreTile("Pop", listOf(Color(0xFFDB9A4E), Color(0xFF7A4A22))),
-    GenreTile("Hip-Hop", listOf(Color(0xFF6B4226), Color(0xFF241609))),
-    GenreTile("R&B", listOf(Color(0xFFC97B3D), Color(0xFF4C301C))),
-    GenreTile("Rock", listOf(Color(0xFF57402F), Color(0xFF17100B))),
-    GenreTile("Chill", listOf(Color(0xFFB98A5E), Color(0xFF5E3E26))),
-    GenreTile("Focus", listOf(Color(0xFF8A6A4A), Color(0xFF2F2013))),
-    GenreTile("Party", listOf(Color(0xFFE0A868), Color(0xFF6A3E1B))),
-    GenreTile("Workout", listOf(Color(0xFF7A5230), Color(0xFF20140C)))
+    GenreTile("Pop", Color(0xFFB35A2E)),
+    GenreTile("Hip-Hop", Color(0xFF6B4226)),
+    GenreTile("R&B", Color(0xFFC97B3D)),
+    GenreTile("Rock", Color(0xFF57402F)),
+    GenreTile("Chill", Color(0xFF8A5A34)),
+    GenreTile("Focus", Color(0xFF6E5232)),
+    GenreTile("Party", Color(0xFFB9772E)),
+    GenreTile("Workout", Color(0xFF7A5230))
 )
 
 private fun formatTime(ms: Long): String {
@@ -154,31 +161,13 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
     Box(
         Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(BG2, BG, Color(0xFF040302)))
+            Brush.verticalGradient(listOf(BG2, BG, BG), endY = 900f)
         )
     ) {
-        // ambient frosted-glass glow blobs
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 46.dp, y = (-34).dp)
-                .size(220.dp)
-                .blur(95.dp)
-                .background(ACCENT.copy(alpha = .17f), CircleShape)
-        )
-        Box(
-            Modifier
-                .align(Alignment.CenterStart)
-                .offset(x = (-70).dp)
-                .size(210.dp)
-                .blur(95.dp)
-                .background(ACCENT2.copy(alpha = .15f), CircleShape)
-        )
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, bottomPad),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(0.dp, 0.dp, 0.dp, bottomPad),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item { GreetingHeader { showQueue = true } }
 
@@ -609,7 +598,7 @@ private fun BrowseGrid(onPick: (String) -> Unit) {
                         shape = RoundedCornerShape(14.dp),
                         color = Color.Transparent
                     ) {
-                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(genre.colors))) {
+                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(genre.color.copy(alpha = .95f), genre.color.copy(alpha = .75f))))) {
                             Text(
                                 genre.label,
                                 Modifier.padding(12.dp),
@@ -671,8 +660,7 @@ private fun GlassCard(shape: RoundedCornerShape, modifier: Modifier, content: @C
     Surface(
         modifier = modifier,
         shape = shape,
-        color = GLASS,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f)),
+        color = CARD,
         tonalElevation = 0.dp
     ) {
         Column(content = content)
@@ -897,10 +885,13 @@ private fun FullPlayer(
     onSave: () -> Unit,
     onQueue: () -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("PLAYING NOW", color = MUTED, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-            IconButton(onClick = onQueue) { Icon(Icons.Default.QueueMusic, "Queue", tint = WARM_WHITE) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onQueue) { Icon(Icons.Default.KeyboardArrowDown, "Close", tint = WARM_WHITE) }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("PLAYING NOW", color = MUTED, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            IconButton(onClick = onQueue) { Icon(Icons.Default.MoreVert, "More", tint = WARM_WHITE) }
         }
         if (mode == PlaybackMode.ONLINE || mode == PlaybackMode.AUTO) {
             YouTubeEmbed(track.youtubeUrl ?: "", Modifier.fillMaxWidth().aspectRatio(1.6f).clip(RoundedCornerShape(24.dp)))
