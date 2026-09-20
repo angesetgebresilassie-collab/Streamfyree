@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name="com.chaquo.python.android.PyApplication"
         android:theme="@style/Theme.Streamfyree"
         android:label="Streamfyree"
         android:allowBackup="true"
