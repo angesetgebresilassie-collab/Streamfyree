@@ -19,7 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.clip
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.palette.graphics.Palette
-import coil3.ImageRequest
+import coil3.request.ImageRequest
 import coil3.toBitmap
 import coil3.compose.AsyncImage
 import com.streamfyree.app.*
@@ -518,7 +518,7 @@ private fun SongRow(
 }
 
 @Composable
-private fun MiniPlayer(track: Track, isPlaying: Boolean, progress: PlaybackProgress, onOpen: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit, onQueue: () -> Unit) {
+private fun androidx.compose.foundation.layout.BoxScope.MiniPlayer(track: Track, isPlaying: Boolean, progress: PlaybackProgress, onOpen: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit, onQueue: () -> Unit) {
     Surface(
         Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 76.dp).clickable(onClick = onOpen),
         RoundedCornerShape(24.dp),
