@@ -53,6 +53,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _history = MutableStateFlow<List<Track>>(emptyList())
     val history: StateFlow<List<Track>> = _history
 
+    private val _discoverTracks = MutableStateFlow<List<Track>>(emptyList())
+    val discoverTracks: StateFlow<List<Track>> = _discoverTracks
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
 
@@ -66,6 +69,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _queue.value = decodeList(prefs[queueKey])
             _history.value = decodeList(prefs[historyKey]).take(20)
         }
+
+        refreshDiscover()
 
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(app, token).buildAsync()
@@ -88,6 +93,32 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setMode(mode: PlaybackMode) { _mode.value = mode }
+
+    fun refreshDiscover() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pool = listOf(
+                "pop hits",
+                "afrobeats",
+                "hip hop",
+                "r&b",
+                "amapiano",
+                "dance",
+                "rock classics",
+                "latin hits",
+                "ethiopian music",
+                "chill"
+            )
+            val tracks = mutableListOf<Track>()
+            pool.shuffled().take(4).forEach { term ->
+                runCatching { itunes.search(term) }
+                    .onSuccess { tracks += it }
+            }
+            _discoverTracks.value = tracks
+                .distinctBy { it.id }
+                .shuffled()
+                .take(20)
+        }
+    }
 
     fun search(query: String) {
         if (query.isBlank()) return
@@ -112,11 +143,27 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun playOnline(track: Track) {
-        _current.value = track
-        _queue.value = listOf(track) + _queue.value.filterNot { it.id == track.id }
-        persistQueue(_queue.value)
-        recordPlayed(track)
-        _state.value = _state.value.copy(error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            val chosen = runCatching {
+                val candidate = api.searchYoutube("${track.artist} ${track.title} lyrics").firstOrNull()
+                    ?: error("No online version found")
+                track.copy(
+                    youtubeUrl = candidate.youtubeUrl
+                        ?: "https://www.youtube.com/watch?v=${candidate.id}",
+                    lyricVideo = true
+                )
+            }.getOrElse { error ->
+                _state.value = _state.value.copy(
+                    error = error.message ?: "Online playback search failed"
+                )
+                track
+            }
+
+            _current.value = chosen
+            _queue.value = listOf(chosen) + _queue.value.filterNot { it.id == chosen.id }
+            persistQueue(_queue.value)
+            recordPlayed(chosen)
+        }
     }
 
     private fun playNative(track: Track, fallbackToOnline: Boolean) {
