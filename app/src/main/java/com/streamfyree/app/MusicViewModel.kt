@@ -26,7 +26,7 @@ import org.json.JSONObject
 private val Application.streamfyreeDataStore by preferencesDataStore("streamfyree")
 
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
-    private val ytDlp = YtDlpBridge(app)
+    private val ytDlp = YtDlpBridge()
     private val itunes = ItunesApi()
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
@@ -146,7 +146,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val chosen = runCatching {
                 val resolved = ytDlp.findLyricsAndResolve(track.artist, track.title)
-                track.copy(\n                    youtubeUrl = resolved.youtubeUrl,\n                    streamUrl = resolved.streamUrl,\n                    lyricVideo = true\n                )
+                track.copy(
+                    youtubeUrl = resolved.youtubeUrl,
+                    streamUrl = resolved.streamUrl,
+                    lyricVideo = true
+                )
             }.getOrElse { error ->
                 _state.value = _state.value.copy(
                     error = error.message ?: "Online playback search failed"
@@ -164,7 +168,16 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private fun playNative(track: Track, fallbackToOnline: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val result = runCatching {
-                val resolved = ytDlp.findLyricsAndResolve(track.artist, track.title)\n                track.copy(\n                    id = resolved.id,\n                    title = resolved.title,\n                    artist = resolved.artist,\n                    youtubeUrl = resolved.youtubeUrl,\n                    streamUrl = resolved.streamUrl,\n                    durationMs = resolved.durationMs,\n                    lyricVideo = true\n                )
+                val resolved = ytDlp.findLyricsAndResolve(track.artist, track.title)
+                track.copy(
+                    id = resolved.id,
+                    title = resolved.title,
+                    artist = resolved.artist,
+                    youtubeUrl = resolved.youtubeUrl,
+                    streamUrl = resolved.streamUrl,
+                    durationMs = resolved.durationMs,
+                    lyricVideo = true
+                )
             }
 
             result.onSuccess { resolved ->
