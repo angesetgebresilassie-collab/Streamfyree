@@ -78,6 +78,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     val queue by vm.queue.collectAsState()
     val library by vm.library.collectAsState()
     val history by vm.history.collectAsState()
+    val discoverTracks by vm.discoverTracks.collectAsState()
     val isPlaying by vm.isPlaying.collectAsState()
     val progress by vm.progress.collectAsState()
 
@@ -178,8 +179,6 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                     val quickPicks = (library.saved + history).distinctBy { it.id }.take(6)
                     if (quickPicks.isNotEmpty()) {
                         item { QuickPicksGrid(quickPicks, vm::play) }
-                    } else if (current == null) {
-                        item { WelcomeCard() }
                     }
 
                     item {
@@ -191,6 +190,27 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                     }
                     item { PlaybackModes(mode, vm::setMode) }
                     state.error?.let { message -> item { ErrorPill(message) } }
+
+                    if (discoverTracks.isNotEmpty()) {
+                        item {
+                            SectionHeader(
+                                "Fresh Mix",
+                                "A randomized feed of real songs, refreshed each time you open the app"
+                            )
+                        }
+                        items(discoverTracks, key = { "discover-" + it.id }) { track ->
+                            SongCard(
+                                track = track,
+                                saved = vm.isSaved(track),
+                                onPlay = { vm.play(track) },
+                                onQueue = { vm.enqueue(track) },
+                                onSave = {
+                                    if (vm.isSaved(track)) vm.unsaveTrack(track)
+                                    else vm.saveTrack(track)
+                                }
+                            )
+                        }
+                    }
 
                     if (state.tracks.isNotEmpty()) {
                         item { SectionHeader("Trending Now", "Real songs from your latest search") }
@@ -674,19 +694,6 @@ private fun EmptyState(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
             Text(title, color = WARM_WHITE, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(subtitle, color = MUTED, fontSize = 13.sp)
-        }
-    }
-}
-
-@Composable
-private fun WelcomeCard() {
-    GlassCard(RoundedCornerShape(28.dp), Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp)) {
-            Pill("DISCOVER", ACCENT)
-            Spacer(Modifier.height(11.dp))
-            Text("Your music,\nwithout the noise.", color = WARM_WHITE, fontSize = 28.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.9).sp)
-            Spacer(Modifier.height(8.dp))
-            Text("Search real songs, then build your home screen from what you actually play.", color = MUTED, fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
 }
