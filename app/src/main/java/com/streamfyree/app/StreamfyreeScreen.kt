@@ -368,8 +368,8 @@ private fun BottomNavBar(tab: Int, onTab: (Int) -> Unit) {
             Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            NavItem(tab == 0, { onTab(0) }, Home, Home, "Home")
-            NavItem(tab == 1, { onTab(1) }, Search, Search, "Search")
+            NavItem(tab == 0, { onTab(0) }, Icons.Default.Home, Icons.Default.Home, "Home")
+            NavItem(tab == 1, { onTab(1) }, Icons.Default.Search, Icons.Default.Search, "Search")
             NavItem(tab == 2, { onTab(2) }, Icons.Default.Favorite, Icons.Default.FavoriteBorder, "Library")
             NavItem(tab == 3, { onTab(3) }, Icons.Default.QueueMusic, Icons.Default.QueueMusic, "Queue")
         }
@@ -618,7 +618,7 @@ private fun BrowseGrid(onPick: (String) -> Unit) {
                                 fontWeight = FontWeight.Bold
                             )
                             Icon(
-                                Icons.Default.MusicNote, null,
+                                Icons.Default.GraphicEq, null,
                                 tint = Color.White.copy(alpha = .35f),
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
