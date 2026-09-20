@@ -24,7 +24,7 @@ jobs:
           if [ -n "$STREAM_API_BASE" ]; then
             gradle clean assembleDebug -PstreamApiBase="$STREAM_API_BASE" --stacktrace --warning-mode all
           else
-            gradle clean assembleDebug --stacktrace --warning-mode all
+            gradle clean assembleDebug --stacktrace --info --warning-mode all
           fi
       - uses: actions/upload-artifact@v4
         with:
