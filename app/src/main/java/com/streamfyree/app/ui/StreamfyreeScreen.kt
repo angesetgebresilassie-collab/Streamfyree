@@ -286,7 +286,6 @@ private fun NavItem(
 ) {
     Column(
         modifier = Modifier
-            .weight(1f)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
