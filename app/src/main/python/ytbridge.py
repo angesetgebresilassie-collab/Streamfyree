@@ -84,7 +84,7 @@ def find_lyrics_and_resolve(artist, title):
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 25,
-        "format": "bestaudio/best",
+        "format": "bestaudio[acodec!=none]/bestaudio",
         "extractor_args": {
             "youtube": {
                 "player_client": ["tv", "android_vr"],
@@ -106,7 +106,6 @@ def find_lyrics_and_resolve(artist, title):
 
     if not stream_url:
         raise RuntimeError("yt-dlp found the lyrics video but no playable audio stream")
-
 
     print(json.dumps({
         "id": video_id,
