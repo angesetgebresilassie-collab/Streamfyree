@@ -84,7 +84,7 @@ def find_lyrics_and_resolve(artist, title):
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 25,
-        "format": "bestaudio[acodec!=none]/bestaudio",
+        "format": "best[acodec!=none][vcodec!=none]/best",
         "extractor_args": {
             "youtube": {
                 "player_client": ["tv", "android_vr"],
@@ -99,13 +99,13 @@ def find_lyrics_and_resolve(artist, title):
     if not stream_url:
         formats = [
             f for f in (info.get("formats") or [])
-            if f.get("url") and (f.get("acodec") not in (None, "none"))
+            if f.get("url") and f.get("acodec") not in (None, "none") and f.get("vcodec") not in (None, "none")
         ]
-        formats.sort(key=lambda f: (f.get("abr") or 0, f.get("tbr") or 0), reverse=True)
+        formats.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
         stream_url = _text(formats[0].get("url")) if formats else ""
 
     if not stream_url:
-        raise RuntimeError("yt-dlp found the lyrics video but no playable audio stream")
+        raise RuntimeError("yt-dlp found the YouTube video but no playable video+audio stream")
 
     print(json.dumps({
         "id": video_id,
