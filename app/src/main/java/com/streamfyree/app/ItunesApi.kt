@@ -4,6 +4,7 @@ import android.net.Uri
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 
 class ItunesApi {
@@ -13,7 +14,8 @@ class ItunesApi {
         val url = "https://itunes.apple.com/search?term=" + Uri.encode(query) + "&media=music&entity=song&limit=24"
         val response = client.newCall(Request.Builder().url(url).build()).execute()
         if (!response.isSuccessful) throw IOException("iTunes returned " + response.code)
-        val array = JSONArray(response.body?.string() ?: "[]")
+        val root = JSONObject(response.body?.string() ?: "{}")
+        val array = root.optJSONArray("results") ?: JSONArray()
         return List(array.length()) { index ->
             val item = array.getJSONObject(index)
             val title = item.optString("trackName")
