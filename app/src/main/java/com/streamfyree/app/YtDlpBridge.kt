@@ -14,8 +14,7 @@ data class YtDlpResult(
     val lyricVideo: Boolean
 )
 
-class YtDlpBridge(context: Context) {
-    private val appContext = context.applicationContext
+class YtDlpBridge {
     private val module by lazy { Python.getInstance().getModule("ytbridge") }
 
     fun findLyricsAndResolve(artist: String, title: String): YtDlpResult {
@@ -24,7 +23,7 @@ class YtDlpBridge(context: Context) {
         }
 
         val query = "$artist $title lyrics"
-        val raw = module.callAttr("find_lyrics_and_resolve", query).toString()
+        val raw = module.callAttr("find_lyrics_and_resolve", artist, title).toString()
         val o = JSONObject(raw)
 
         return YtDlpResult(
