@@ -1,17 +1,29 @@
 # Streamfyree
 
-Colorful, frosted-glass Android music player backed by server-side yt-dlp and iTunes metadata.
+A premium Android music player with a Spotify-inspired frosted-glass interface.
 
-Android: Kotlin, Jetpack Compose, Media3.
-Discovery: YouTube search through yt-dlp on the backend.
-Metadata/artwork: iTunes Search API.
-Native mode: backend resolves an audio URL with yt-dlp; Media3 plays it.
-YouTube mode: the track URL is retained for an embedded player integration.
-Bandwidth: backend prefers audio streams at or below 128 kbps.
+### What it does
 
-Development:
-1. Run backend/ using backend/README.md.
-2. Set STREAM_API_BASE in app/build.gradle.kts.
-3. Build with Gradle or Android Studio.
+- Real music discovery using iTunes metadata and artwork
+- Randomized home feed with fresh songs
+- Search results displayed as real, clickable tracks
+- Native Audio playback through the Streamfyree backend
+- Online playback with lyric-video discovery
+- Queue, library, favorites, recently played, and background playback
+- Media3 controls for lock screen, Bluetooth, and headset playback
+- Low-bandwidth audio selection
+- Color-aware artwork styling
 
-YouTube and yt-dlp usage must comply with applicable service terms and copyright laws.
+### Architecture
+
+The Android app handles the interface and playback controls. The optional backend handles YouTube discovery and server-side media resolution so yt-dlp is not bundled into the Android APK.
+
+### Running the backend
+
+The backend lives in `backend/` and exposes the API consumed by the Android app. See `backend/README.md` for server setup.
+
+### Android build
+
+Open the project in Android Studio or build the `app` module with Gradle. The app can use a configured `STREAM_API_BASE` value for the backend URL.
+
+> YouTube and yt-dlp usage must comply with applicable service terms and copyright laws.
