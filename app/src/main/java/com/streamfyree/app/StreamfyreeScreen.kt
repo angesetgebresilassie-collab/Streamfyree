@@ -16,8 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Home as OutlinedHome
-import androidx.compose.material.icons.outlined.Search as OutlinedSearch
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -332,8 +330,8 @@ private fun BottomNavBar(tab: Int, onTab: (Int) -> Unit) {
             Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            NavItem(tab == 0, { onTab(0) }, Icons.Default.Home, OutlinedHome, "Home")
-            NavItem(tab == 1, { onTab(1) }, Icons.Default.Search, OutlinedSearch, "Search")
+            NavItem(tab == 0, { onTab(0) }, Icons.Default.Home, Icons.Default.Home, "Home")
+            NavItem(tab == 1, { onTab(1) }, Icons.Default.Search, Icons.Default.Search, "Search")
             NavItem(tab == 2, { onTab(2) }, Icons.Default.Favorite, Icons.Default.FavoriteBorder, "Library")
             NavItem(tab == 3, { onTab(3) }, Icons.Default.QueueMusic, Icons.Default.QueueMusic, "Queue")
         }
