@@ -40,7 +40,7 @@ def _score(entry, artist, title):
     return score
 
 
-def _search(query):
+def _search(query, artist, title):
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -61,13 +61,13 @@ def _search(query):
     if not entries:
         raise RuntimeError("No YouTube lyrics video found")
 
-    artist, title = query.rsplit(" lyrics", 1)[0].split(" ", 1) if " " in query else ("", query)
     entries.sort(key=lambda e: _score(e, artist, title), reverse=True)
     return entries[0]
 
 
-def find_lyrics_and_resolve(query):
-    candidate = _search(query)
+def find_lyrics_and_resolve(artist, title):
+    query = f"{artist} {title} lyrics"
+    candidate = _search(query, artist, title)
     video_id = _text(candidate.get("id"))
     webpage_url = _text(candidate.get("webpage_url"))
 
@@ -107,7 +107,6 @@ def find_lyrics_and_resolve(query):
     if not stream_url:
         raise RuntimeError("yt-dlp found the lyrics video but no playable audio stream")
 
-    artist, title = query.rsplit(" lyrics", 1)[0].split(" ", 1) if " " in query else ("", query)
 
     print(json.dumps({
         "id": video_id,
