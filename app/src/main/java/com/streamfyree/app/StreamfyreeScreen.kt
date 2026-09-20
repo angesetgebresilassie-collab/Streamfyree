@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -183,7 +185,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
                     val quickPicks = (library.saved + history).distinctBy { it.id }.take(6)
                     if (quickPicks.isNotEmpty()) {
-                        item { QuickPicksGrid(quickPicks, vm::play) }
+                        item { QuickPicksGrid(quickPicks, { track -> showPlayer = true; vm.play(track) }) }
                     }
 
                     item {
@@ -455,7 +457,7 @@ private fun FrostedPanel(
                 .blur(30.dp)
                 .background(Brush.linearGradient(listOf(accent.copy(alpha = .30f), ACCENT2.copy(alpha = .14f), Color.Transparent)))
         )
-        Box(Modifier.matchParentSize().background(GLASS))
+        Box(Modifier.matchParentSize().background(CARD))
         Box(Modifier.matchParentSize().border(1.dp, Color.White.copy(alpha = .10f), shape))
         content()
     }
@@ -551,7 +553,7 @@ private fun QuickPicksGrid(tracks: List<Track>, onPlay: (Track) -> Unit) {
         tracks.chunked(2).forEach { rowTracks ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 rowTracks.forEach { track ->
-                    QuickPickTile(track, Modifier.weight(1f)) { showPlayer = true; onPlay(track) }
+                    QuickPickTile(track, Modifier.weight(1f)) { onPlay(track) }
                 }
                 if (rowTracks.size == 1) Spacer(Modifier.weight(1f))
             }
