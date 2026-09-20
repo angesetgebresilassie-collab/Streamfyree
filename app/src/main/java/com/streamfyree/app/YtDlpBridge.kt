@@ -1,6 +1,5 @@
 package com.streamfyree.app
 
-import android.content.Context
 import com.chaquo.python.Python
 import org.json.JSONObject
 
@@ -22,7 +21,6 @@ class YtDlpBridge {
             "yt-dlp runtime is not ready"
         }
 
-        val query = "$artist $title lyrics"
         val raw = module.callAttr("find_lyrics_and_resolve", artist, title).toString()
         val o = JSONObject(raw)
 
