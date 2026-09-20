@@ -162,6 +162,28 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _queue.value = listOf(chosen) + _queue.value.filterNot { it.id == chosen.id }
             persistQueue(_queue.value)
             recordPlayed(chosen)
+
+            val url = chosen.streamUrl
+            if (!url.isNullOrBlank()) {
+                val metadata = MediaMetadata.Builder()
+                    .setTitle(chosen.title)
+                    .setArtist(chosen.artist)
+                    .setAlbumTitle(chosen.album)
+                    .setArtworkUri(chosen.artwork?.let(Uri::parse))
+                    .build()
+                val mediaController = controller ?: runCatching { controllerFuture.get() }.getOrNull()
+                mediaController?.let {
+                    it.setMediaItem(
+                        MediaItem.Builder()
+                            .setMediaId(chosen.id)
+                            .setUri(url)
+                            .setMediaMetadata(metadata)
+                            .build()
+                    )
+                    it.prepare()
+                    it.play()
+                }
+            }
         }
     }
 
@@ -193,16 +215,17 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         .setAlbumTitle(resolved.album)
                         .setArtworkUri(resolved.artwork?.let(Uri::parse))
                         .build()
-                    controller?.let { mediaController ->
-                        mediaController.setMediaItem(
+                    val mediaController = controller ?: runCatching { controllerFuture.get() }.getOrNull()
+                    mediaController?.let {
+                        it.setMediaItem(
                             MediaItem.Builder()
                                 .setMediaId(resolved.id)
                                 .setUri(url)
                                 .setMediaMetadata(metadata)
                                 .build()
                         )
-                        mediaController.prepare()
-                        mediaController.play()
+                        it.prepare()
+                        it.play()
                     }
                 }
                 _state.value = _state.value.copy(error = null)
