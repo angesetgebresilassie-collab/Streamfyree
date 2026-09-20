@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.chaquo.python")
 }
 
 android {
@@ -12,15 +13,16 @@ android {
         applicationId = "com.streamfyree.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
-        val streamApiBase = providers.gradleProperty("streamApiBase").orElse("").get().trim()
-        buildConfigField("String", "STREAM_API_BASE", "\"$streamApiBase\"")
+        versionCode = 3
+        versionName = "0.3.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     compileOptions {
@@ -29,6 +31,15 @@ android {
     }
 
     kotlinOptions { jvmTarget = "17" }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.13"
+        pip {
+            install("yt-dlp==2026.08.19")
+        }
+    }
 }
 
 dependencies {
