@@ -61,6 +61,89 @@ def _search(query, artist, title):
     return entries[0]
 
 
+PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://pipedapi.leptons.xyz",
+    "https://pipedapi.nosebs.ru",
+    "https://piped-api.privacy.com.de",
+    "https://pipedapi.adminforge.de",
+    "https://api.piped.yt",
+]
+
+def _http_json(url):
+    import urllib.request
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Streamfyree/1.0 (Android)",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=12) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _piped_resolve(artist, title):
+    import urllib.parse
+    query = f"{artist} {title} lyrics"
+    last_error = None
+
+    for base in PIPED_INSTANCES:
+        try:
+            search_url = base + "/search?" + urllib.parse.urlencode({
+                "q": query,
+                "filter": "videos",
+            })
+            data = _http_json(search_url)
+            items = [
+                item for item in (data.get("items") or [])
+                if item.get("type") == "stream" and item.get("url")
+            ]
+            if not items:
+                continue
+
+            def score(item):
+                text = _text(item.get("title"))
+                return _score({"title": text}, artist, title)
+
+            items.sort(key=score, reverse=True)
+            video_url = _text(items[0].get("url"))
+            video_id = video_url.rsplit("v=", 1)[-1].split("&", 1)[0]
+            if not video_id:
+                continue
+
+            stream_data = _http_json(base + "/streams/" + urllib.parse.quote(video_id, safe=""))
+            streams = [
+                stream for stream in (stream_data.get("audioStreams") or [])
+                if stream.get("url") and not stream.get("videoOnly", False)
+            ]
+            if not streams:
+                continue
+
+            streams.sort(
+                key=lambda x: (
+                    1 if str(x.get("format", "")).upper() == "M4A" else 0,
+                    x.get("bitrate") or 0,
+                ),
+                reverse=True,
+            )
+            stream = streams[0]
+            return {
+                "id": video_id,
+                "title": _text(stream_data.get("title")) or _text(items[0].get("title")) or title,
+                "artist": _text(stream_data.get("uploader")) or artist,
+                "youtube_url": "https://www.youtube.com/watch?v=" + video_id,
+                "stream_url": _text(stream.get("url")),
+                "duration_ms": int((stream_data.get("duration") or 0) * 1000),
+            }
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise RuntimeError("YouTube resolver and all Piped fallbacks failed: " + str(last_error))
+    raise RuntimeError("No playable audio stream found from YouTube/Piped")
+
+
 def find_lyrics_and_resolve(artist, title):
     query = f"{artist} {title} lyrics"
     candidate = _search(query, artist, title)
@@ -91,8 +174,11 @@ def find_lyrics_and_resolve(artist, title):
         },
     }
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception:
+        return json.dumps(_piped_resolve(artist, title))
 
     stream_url = _text(info.get("url"))
     if not stream_url:
@@ -111,7 +197,7 @@ def find_lyrics_and_resolve(artist, title):
         stream_url = _text(formats[0].get("url")) if formats else ""
 
     if not stream_url:
-        raise RuntimeError("yt-dlp found the YouTube video but no playable audio stream")
+        return json.dumps(_piped_resolve(artist, title))
 
     result = {
         "id": video_id,
