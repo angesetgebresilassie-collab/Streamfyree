@@ -56,6 +56,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     val isPlaying: StateFlow<Boolean> = _isPlaying
     private val _progress = MutableStateFlow(PlaybackProgress())
     val progress: StateFlow<PlaybackProgress> = _progress
+    private val _repeat = MutableStateFlow(RepeatMode.OFF)
+    val repeat: StateFlow<RepeatMode> = _repeat
+    private val _shuffle = MutableStateFlow(false)
+    val shuffle: StateFlow<Boolean> = _shuffle
 
     init {
         DebugLogger.info("PLAYER", "MusicViewModel initialized; waiting for MediaController")
@@ -83,7 +87,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 override fun onPlaybackStateChanged(state: Int) {
                     DebugLogger.info("PLAYER", "Playback state changed: $state")
-                    if (state == Player.STATE_ENDED) playNextAutomatic()
+                    if (state == Player.STATE_ENDED) onTrackEnded()
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     val detail = buildString {
@@ -237,14 +241,49 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         _queue.value = _queue.value.filterNot { it.id == track.id }
         persistQueue(_queue.value)
     }
-    fun next() { playNextAutomatic() }
-    private fun playNextAutomatic() {
-        val i = _queue.value.indexOfFirst { it.id == _current.value?.id }
-        if (i >= 0 && i + 1 < _queue.value.size) play(_queue.value[i + 1])
+    fun next() {
+        val q = _queue.value
+        if (q.isEmpty()) return
+        val i = q.indexOfFirst { it.id == _current.value?.id }
+        when {
+            i >= 0 && i + 1 < q.size -> play(q[i + 1])
+            _repeat.value == RepeatMode.ALL -> play(q.first())
+        }
+    }
+    private fun onTrackEnded() {
+        when (_repeat.value) {
+            RepeatMode.ONE -> _current.value?.let { play(it) }
+            else -> next()
+        }
     }
     fun previous() {
-        val i = _queue.value.indexOfFirst { it.id == _current.value?.id }
-        if (i > 0) play(_queue.value[i - 1])
+        val pos = controller?.currentPosition ?: 0L
+        if (pos > 3000L) { seekTo(0L); return }
+        val q = _queue.value
+        if (q.isEmpty()) return
+        val i = q.indexOfFirst { it.id == _current.value?.id }
+        when {
+            i > 0 -> play(q[i - 1])
+            _repeat.value == RepeatMode.ALL -> play(q.last())
+            else -> seekTo(0L)
+        }
+    }
+    fun cycleRepeat() {
+        _repeat.value = when (_repeat.value) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+    }
+    fun toggleShuffle() {
+        val enabled = !_shuffle.value
+        _shuffle.value = enabled
+        if (enabled) {
+            val cur = _current.value
+            val rest = _queue.value.filterNot { it.id == cur?.id }.shuffled()
+            _queue.value = listOfNotNull(cur) + rest
+            persistQueue(_queue.value)
+        }
     }
     fun togglePlayPause() {
         viewModelScope.launch(Dispatchers.Main.immediate) {

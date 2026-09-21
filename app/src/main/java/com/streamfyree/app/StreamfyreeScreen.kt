@@ -3,6 +3,14 @@ package com.streamfyree.app.ui
 import android.content.Intent
 import android.webkit.WebView
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -27,9 +35,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.palette.graphics.Palette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +67,49 @@ private val MUTED = Color(0xFFA3A3A3)
 private val ACCENT = Color(0xFFFFB1B5)
 private val ACCENT_DEEP = Color(0xFF7E232F)
 
+private fun Color.darken(fraction: Float): Color = lerp(this, Color.Black, fraction.coerceIn(0f, 1f))
+private fun Color.lighten(fraction: Float): Color = lerp(this, Color.White, fraction.coerceIn(0f, 1f))
+
+/** Loads the artwork and extracts a vibrant dominant color, animating between songs. */
+@Composable
+private fun rememberArtworkColor(artwork: String?): Color {
+    val context = LocalContext.current
+    var target by remember { mutableStateOf(ACCENT) }
+    LaunchedEffect(artwork) {
+        if (artwork.isNullOrBlank()) {
+            target = ACCENT
+            return@LaunchedEffect
+        }
+        val palette = withContext(Dispatchers.IO) {
+            runCatching {
+                val loader = coil3.SingletonImageLoader.get(context)
+                val request = coil3.request.ImageRequest.Builder(context)
+                    .data(artwork)
+                    .allowHardware(false)
+                    .size(160)
+                    .build()
+                val image = (loader.execute(request) as? coil3.request.SuccessResult)?.image
+                val bitmap = (image as? coil3.BitmapImage)?.bitmap
+                bitmap?.let { Palette.from(it).generate() }
+            }.getOrNull()
+        }
+        palette?.let { p ->
+            val rgb = p.vibrantSwatch?.rgb
+                ?: p.lightVibrantSwatch?.rgb
+                ?: p.mutedSwatch?.rgb
+                ?: p.darkVibrantSwatch?.rgb
+                ?: p.dominantSwatch?.rgb
+            if (rgb != null) target = Color(rgb)
+        }
+    }
+    val animated by animateColorAsState(
+        targetValue = target,
+        animationSpec = tween(700),
+        label = "artwork-color"
+    )
+    return animated
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StreamfyreeScreen(vm: MusicViewModel) {
@@ -63,6 +122,9 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     val playing by vm.isPlaying.collectAsState()
     val progress by vm.progress.collectAsState()
     val mode by vm.mode.collectAsState()
+    val repeat by vm.repeat.collectAsState()
+    val shuffle by vm.shuffle.collectAsState()
+    val accent = rememberArtworkColor(current?.artwork)
 
     var query by remember { mutableStateOf("") }
     var tab by remember { mutableIntStateOf(0) }
@@ -139,15 +201,23 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
             Spacer(Modifier.weight(1f))
 
-            current?.let { track ->
-                MiniPlayer(
-                    track = track,
-                    playing = playing,
-                    onToggle = vm::togglePlayPause,
-                    onPrevious = vm::previous,
-                    onNext = vm::next,
-                    onOpen = { playerOpen = true }
-                )
+            AnimatedVisibility(
+                visible = current != null,
+                enter = slideInVertically { it } + fadeIn(tween(280)),
+                exit = slideOutVertically { it } + fadeOut(tween(200))
+            ) {
+                current?.let { track ->
+                    MiniPlayer(
+                        track = track,
+                        accent = accent,
+                        playing = playing,
+                        progress = progress,
+                        onToggle = vm::togglePlayPause,
+                        onPrevious = vm::previous,
+                        onNext = vm::next,
+                        onOpen = { playerOpen = true }
+                    )
+                }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -158,9 +228,12 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     if (playerOpen && current != null) {
         FullPlayer(
             track = current!!,
+            accent = accent,
             playing = playing,
             progress = progress,
             mode = mode,
+            repeat = repeat,
+            shuffle = shuffle,
             resolving = state.loading,
             queue = queue,
             isSaved = vm.isSaved(current!!),
@@ -169,6 +242,8 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
             onPrevious = vm::previous,
             onNext = vm::next,
             onSeek = vm::seekTo,
+            onShuffle = vm::toggleShuffle,
+            onCycleRepeat = vm::cycleRepeat,
             onToggleSaved = {
                 if (vm.isSaved(current!!)) vm.unsaveTrack(current!!) else vm.saveTrack(current!!)
             },
@@ -707,12 +782,18 @@ private fun TrackRow(
 @Composable
 private fun MiniPlayer(
     track: Track,
+    accent: Color,
     playing: Boolean,
+    progress: PlaybackProgress,
     onToggle: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpen: () -> Unit
 ) {
+    val deep = accent.darken(.52f)
+    val mid = accent.darken(.34f)
+    val fraction = if (progress.durationMs > 0)
+        (progress.positionMs.toFloat() / progress.durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     Box(
         Modifier
             .fillMaxWidth()
@@ -724,13 +805,13 @@ private fun MiniPlayer(
         AsyncImage(
             model = track.artwork,
             contentDescription = null,
-            modifier = Modifier.fillMaxSize().alpha(.32f),
+            modifier = Modifier.fillMaxSize().blur(34.dp),
             contentScale = ContentScale.Crop
         )
         Box(
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
-                    listOf(ACCENT_DEEP, Color(0xFF8B2730).copy(alpha = .84f), ACCENT_DEEP)
+                    listOf(deep.copy(alpha = .93f), mid.copy(alpha = .82f), deep.copy(alpha = .93f))
                 )
             )
         )
@@ -742,11 +823,28 @@ private fun MiniPlayer(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(track.title, color = TEXT, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(track.artist, color = Color.White.copy(alpha = .72f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track.artist, color = Color.White.copy(alpha = .74f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             PlayerMiniButton(Icons.Default.SkipPrevious, onPrevious)
             PlayerMiniButton(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, onToggle, true)
             PlayerMiniButton(Icons.Default.SkipNext, onNext)
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(.86f)
+                .padding(bottom = 7.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = .22f))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(accent.lighten(.15f))
+            )
         }
     }
 }
@@ -773,9 +871,12 @@ private fun PlayerMiniButton(
 @Composable
 private fun FullPlayer(
     track: Track,
+    accent: Color,
     playing: Boolean,
     progress: PlaybackProgress,
     mode: PlaybackMode,
+    repeat: RepeatMode,
+    shuffle: Boolean,
     resolving: Boolean = false,
     queue: List<Track>,
     isSaved: Boolean,
@@ -784,11 +885,18 @@ private fun FullPlayer(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    onShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
     onToggleSaved: () -> Unit,
     onQueue: () -> Unit
 ) {
     val context = LocalContext.current
     var heartPressed by remember { mutableStateOf(false) }
+
+    // Colors derived from the artwork's dominant color.
+    val playColor = accent.lighten(.06f)
+    val onPlayColor = if (playColor.luminance() > .5f) Color.Black else Color.White
+    val activeTint = accent.lighten(.24f)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -797,6 +905,23 @@ private fun FullPlayer(
             decorFitsSystemWindows = false
         )
     ) {
+        // Make the dialog window truly edge-to-edge, extending under the status bar.
+        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        LaunchedEffect(dialogWindow) {
+            dialogWindow?.let { w ->
+                WindowCompat.setDecorFitsSystemWindows(w, false)
+                w.statusBarColor = android.graphics.Color.TRANSPARENT
+                w.navigationBarColor = android.graphics.Color.TRANSPARENT
+            }
+        }
+
+        val visibleState = remember { MutableTransitionState(false).apply { targetState = true } }
+
+        AnimatedVisibility(
+            visibleState = visibleState,
+            enter = slideInVertically(tween(340)) { it } + fadeIn(tween(240)),
+            exit = slideOutVertically(tween(240)) { it } + fadeOut(tween(160))
+        ) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -804,7 +929,7 @@ private fun FullPlayer(
         ) {
             Crossfade(
                 targetState = track.artwork,
-                animationSpec = androidx.compose.animation.core.tween(200),
+                animationSpec = androidx.compose.animation.core.tween(400),
                 label = "artwork-background"
             ) { artwork ->
                 AsyncImage(
@@ -812,8 +937,7 @@ private fun FullPlayer(
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(42.dp)
-                        .alpha(.62f),
+                        .blur(48.dp),
                     contentScale = ContentScale.Crop
                 )
             }
@@ -824,9 +948,9 @@ private fun FullPlayer(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = .28f),
-                                Color.Black.copy(alpha = .58f),
-                                BG.copy(alpha = .96f)
+                                accent.darken(.18f).copy(alpha = .55f),
+                                accent.darken(.46f).copy(alpha = .74f),
+                                accent.darken(.74f).copy(alpha = .97f)
                             )
                         )
                     )
@@ -931,7 +1055,7 @@ private fun FullPlayer(
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
                         thumbColor = Color.White,
-                        activeTrackColor = Color.White.copy(alpha = .92f),
+                        activeTrackColor = activeTint,
                         inactiveTrackColor = Color.White.copy(alpha = .20f)
                     )
                 )
@@ -952,28 +1076,40 @@ private fun FullPlayer(
                         .height(if (availableHeight < 760.dp) 132.dp else 154.dp)
                 ) {
                     Row(
-                        Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                        Modifier.fillMaxSize().padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         IconButton(
+                            onClick = onShuffle,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Shuffle,
+                                "Shuffle",
+                                tint = if (shuffle) activeTint else Color.White.copy(alpha = .6f),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+
+                        IconButton(
                             onClick = onPrevious,
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(58.dp)
                         ) {
                             Icon(
                                 Icons.Default.SkipPrevious,
-                                null,
+                                "Previous",
                                 tint = Color.White,
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
 
                         FilledIconButton(
                             onClick = onToggle,
-                            modifier = Modifier.size(if (availableHeight < 760.dp) 112.dp else 128.dp),
+                            modifier = Modifier.size(if (availableHeight < 760.dp) 104.dp else 120.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = ACCENT,
-                                contentColor = Color.Black
+                                containerColor = playColor,
+                                contentColor = onPlayColor
                             )
                         ) {
                             Crossfade(
@@ -984,20 +1120,32 @@ private fun FullPlayer(
                                 Icon(
                                     if (isNowPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     null,
-                                    modifier = Modifier.size(56.dp)
+                                    modifier = Modifier.size(54.dp)
                                 )
                             }
                         }
 
                         IconButton(
                             onClick = onNext,
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(58.dp)
                         ) {
                             Icon(
                                 Icons.Default.SkipNext,
-                                null,
+                                "Next",
                                 tint = Color.White,
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onCycleRepeat,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                if (repeat == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                "Repeat",
+                                tint = if (repeat == RepeatMode.OFF) Color.White.copy(alpha = .6f) else activeTint,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     }
@@ -1069,6 +1217,7 @@ private fun FullPlayer(
                     }
                 }
             }
+        }
         }
     }
 }

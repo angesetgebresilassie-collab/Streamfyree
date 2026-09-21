@@ -14,6 +14,8 @@ data class Track(
 
 enum class PlaybackMode { AUTO, NATIVE, ONLINE }
 
+enum class RepeatMode { OFF, ALL, ONE }
+
 data class SearchState(
     val query: String = "",
     val loading: Boolean = false,
