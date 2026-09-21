@@ -2,7 +2,6 @@ package com.streamfyree.app.ui
 
 import android.content.Intent
 import android.webkit.WebView
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -857,6 +856,9 @@ private fun FullPlayer(
                     )
             )
 
+            val availableWidth = maxWidth
+            val availableHeight = maxHeight
+
             Column(
                 Modifier
                     .fillMaxSize()
@@ -887,7 +889,7 @@ private fun FullPlayer(
                     )
                 }
 
-                val artworkSize = minOf(maxWidth * .90f, maxHeight * .48f)
+                val artworkSize = minOf(availableWidth * .90f, availableHeight * .48f)
                 Spacer(Modifier.height(10.dp))
 
                 Crossfade(
@@ -910,7 +912,7 @@ private fun FullPlayer(
                     }
                 }
 
-                Spacer(Modifier.height(if (maxHeight < 760.dp) 14.dp else 20.dp))
+                Spacer(Modifier.height(if (availableHeight < 760.dp) 14.dp else 20.dp))
 
                 Text(
                     track.title,
@@ -987,15 +989,9 @@ private fun FullPlayer(
                                 contentColor = Color.Black
                             )
                         ) {
-                            AnimatedContent(
+                            Crossfade(
                                 targetState = playing,
-                                transitionSpec = {
-                                    androidx.compose.animation.fadeIn(
-                                        androidx.compose.animation.core.tween(160)
-                                    ) togetherWith androidx.compose.animation.fadeOut(
-                                        androidx.compose.animation.core.tween(120)
-                                    )
-                                },
+                                animationSpec = androidx.compose.animation.core.tween(160),
                                 label = "play-pause"
                             ) { isNowPlaying ->
                                 Icon(
