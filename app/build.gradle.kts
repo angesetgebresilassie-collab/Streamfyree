@@ -62,5 +62,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("androidx.datastore:datastore-preferences:1.1.2")
+    // NewPipe Extractor provides fresh, direct media URLs. We select an AudioStream
+    // so ExoPlayer receives an audio-only googlevideo CDN URL, never the video stream.
+    implementation("com.github.teamnewpipe:newpipeextractor:0.26.5")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
