@@ -77,7 +77,6 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_ENDED) playNextAutomatic()
-                    if (state == Player.STATE_ERROR) _state.value = _state.value.copy(error = "Playback error occurred")
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     _state.value = _state.value.copy(error = "Playback error: ${error.message}")
