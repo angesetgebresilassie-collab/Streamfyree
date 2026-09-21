@@ -1,0 +1,6 @@
+{
+  "name": "StreamMusic",
+  "description": "Live music streaming with shrunk YouTube audio playback, iTunes metadata search, and dark mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
