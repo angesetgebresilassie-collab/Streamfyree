@@ -122,6 +122,7 @@ private fun DebugLogDialog(
 
 @Composable
 private fun DebugLogRow(log: DebugLog) {
+    val context = LocalContext.current
     val time = remember(log.timestamp) {
         SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date(log.timestamp))
     }
@@ -149,7 +150,10 @@ private fun DebugLogRow(log: DebugLog) {
                     tint = Color.Gray,
                     modifier = Modifier
                         .size(18.dp)
-                        .clickable { DebugLogger.copyToClipboard(log.text) }
+                        .clickable {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Streamfyree debug log", log.text))
+                        }
                 )
             }
             Spacer(Modifier.height(6.dp))
