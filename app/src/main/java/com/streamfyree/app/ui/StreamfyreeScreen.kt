@@ -962,7 +962,7 @@ private fun FullPlayer(
                 GlassPill(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (maxHeight < 760.dp) 132.dp else 154.dp)
+                        .height(if (availableHeight < 760.dp) 132.dp else 154.dp)
                 ) {
                     Row(
                         Modifier.fillMaxSize().padding(horizontal = 18.dp),
@@ -983,7 +983,7 @@ private fun FullPlayer(
 
                         FilledIconButton(
                             onClick = onToggle,
-                            modifier = Modifier.size(if (maxHeight < 760.dp) 112.dp else 128.dp),
+                            modifier = Modifier.size(if (availableHeight < 760.dp) 112.dp else 128.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = ACCENT,
                                 contentColor = Color.Black
