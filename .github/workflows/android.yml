@@ -30,10 +30,10 @@ jobs:
       - name: Build debug APK
         run: gradle clean assembleDebug --stacktrace --info --warning-mode all
 
-      - name: Upload APK (fast packaging)
+      - name: Upload APK (compressed)
         uses: actions/upload-artifact@v4
         with:
           name: streamfyree-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 6
