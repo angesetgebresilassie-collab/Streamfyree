@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -68,23 +69,32 @@ private val ACCENT2 = Color(0xFF8C5A2B)
 private val CARD = Color(0xFF1C1611)
 private val CARD_RAISED = Color(0xFF241B14)
 private val CHIP_OFF = Color(0xFF211A14)
+private val SHADOW = Color(0xFF000000)
+private val HAIRLINE = Color.White.copy(alpha = .07f)
 
 private val R_XS = RoundedCornerShape(4.dp)
 private val R_SM = RoundedCornerShape(6.dp)
 private val R_MD = RoundedCornerShape(8.dp)
 private val R_PILL = RoundedCornerShape(50)
 
-private data class GenreTile(val label: String, val color: Color)
+private fun Modifier.elevatedCard(shape: Shape, elevation: androidx.compose.ui.unit.Dp = 8.dp) = this.shadow(
+    elevation = elevation,
+    shape = shape,
+    ambientColor = SHADOW.copy(alpha = .5f),
+    spotColor = SHADOW.copy(alpha = .6f)
+)
+
+private data class GenreTile(val label: String, val gradient: List<Color>)
 
 private val genreTiles = listOf(
-    GenreTile("Pop", Color(0xFFB35A2E)),
-    GenreTile("Hip-Hop", Color(0xFF6B4226)),
-    GenreTile("R&B", Color(0xFFC97B3D)),
-    GenreTile("Rock", Color(0xFF57402F)),
-    GenreTile("Chill", Color(0xFF8A5A34)),
-    GenreTile("Focus", Color(0xFF6E5232)),
-    GenreTile("Party", Color(0xFFB9772E)),
-    GenreTile("Workout", Color(0xFF7A5230))
+    GenreTile("Pop", listOf(Color(0xFFC1683A), Color(0xFF8A3F1F))),
+    GenreTile("Hip-Hop", listOf(Color(0xFF7A5233), Color(0xFF3E2C1B))),
+    GenreTile("R&B", listOf(Color(0xFFD4913F), Color(0xFF934F1E))),
+    GenreTile("Rock", listOf(Color(0xFF66503C), Color(0xFF362A1E))),
+    GenreTile("Chill", listOf(Color(0xFF9A6A3F), Color(0xFF54371F))),
+    GenreTile("Focus", listOf(Color(0xFF7D6038), Color(0xFF41311B))),
+    GenreTile("Party", listOf(Color(0xFFCB8636), Color(0xFF8F4E1B))),
+    GenreTile("Workout", listOf(Color(0xFF8A5F35), Color(0xFF48311B)))
 )
 
 private fun formatTime(ms: Long): String {
@@ -529,7 +539,7 @@ private fun ContinueListeningCard(track: Track, isPlaying: Boolean, onOpen: () -
     var tint by remember(track.artwork) { mutableStateOf(ACCENT) }
     FrostedPanel(RoundedCornerShape(18.dp), Modifier.fillMaxWidth().clickable(onClick = onOpen), accent = tint) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtworkImage(track, tint, { tint = it }, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
+            ArtworkImage(track, tint, { tint = it }, Modifier.size(52.dp).elevatedCard(RoundedCornerShape(12.dp), 4.dp).clip(RoundedCornerShape(12.dp)))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("CONTINUE LISTENING", color = ACCENT, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
@@ -596,17 +606,24 @@ private fun BrowseGrid(onPick: (String) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { genre ->
                     Surface(
-                        modifier = Modifier.weight(1f).height(88.dp).clip(RoundedCornerShape(14.dp)).clickable { onPick(genre.label) },
-                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(92.dp)
+                            .elevatedCard(RoundedCornerShape(16.dp), 6.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onPick(genre.label) },
+                        shape = RoundedCornerShape(16.dp),
                         color = Color.Transparent
                     ) {
-                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(genre.color.copy(alpha = .95f), genre.color.copy(alpha = .75f))))) {
+                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(genre.gradient))) {
+                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .30f)))))
                             Text(
                                 genre.label,
-                                Modifier.padding(12.dp),
+                                Modifier.align(Alignment.BottomStart).padding(14.dp),
                                 color = WARM_WHITE,
                                 fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-.2).sp
                             )
                             Icon(
                                 Icons.Default.GraphicEq, null,
@@ -660,7 +677,7 @@ private fun ArtworkImage(track: Track, tint: Color, onTint: (Color) -> Unit, mod
 @Composable
 private fun GlassCard(shape: RoundedCornerShape, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.elevatedCard(shape, 5.dp),
         shape = shape,
         color = CARD,
         tonalElevation = 0.dp
@@ -707,10 +724,10 @@ private fun EmptyState(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
 @Composable
 private fun SearchBar(value: String, onValueChange: (String) -> Unit, onSearch: () -> Unit, placeholder: String = "Search for songs, artists, albums…") {
     Surface(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().elevatedCard(RoundedCornerShape(22.dp), 4.dp).clip(RoundedCornerShape(22.dp)),
         RoundedCornerShape(22.dp),
-        color = Color.White.copy(alpha = .045f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .18f))
+        color = CARD_RAISED.copy(alpha = .92f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f))
     ) {
         Row(Modifier.padding(start = 14.dp, end = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Search, null, tint = WARM_WHITE, modifier = Modifier.size(23.dp))
@@ -753,10 +770,10 @@ private fun PlaybackModes(mode: PlaybackMode, onMode: (PlaybackMode) -> Unit) {
 @Composable
 private fun Mode(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        Modifier.clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
+        Modifier.let { if (selected) it.elevatedCard(RoundedCornerShape(18.dp), 4.dp) else it }.clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
         RoundedCornerShape(18.dp),
-        color = if (selected) ACCENT else Color.White.copy(alpha = .035f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) ACCENT else Color.White.copy(alpha = .13f))
+        color = if (selected) ACCENT else CARD_RAISED.copy(alpha = .7f),
+        border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f))
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = if (selected) BG else WARM_WHITE, modifier = Modifier.size(19.dp))
@@ -779,7 +796,7 @@ private fun SongTile(track: Track, modifier: Modifier, onClick: () -> Unit) {
     var tint by remember(track.artwork) { mutableStateOf(ACCENT) }
     GlassCard(RoundedCornerShape(20.dp), modifier.clickable(onClick = onClick)) {
         Column {
-            ArtworkImage(track, tint, { tint = it }, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(18.dp)))
+            ArtworkImage(track, tint, { tint = it }, Modifier.fillMaxWidth().aspectRatio(1f).elevatedCard(RoundedCornerShape(18.dp), 8.dp).clip(RoundedCornerShape(18.dp)))
             Column(Modifier.padding(10.dp)) {
                 Text(track.title, color = WARM_WHITE, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 Text(track.artist, color = MUTED, fontSize = 12.sp, maxLines = 1)
@@ -810,10 +827,10 @@ private fun SongCard(
 ) {
     var tint by remember(track.artwork) { mutableStateOf(ACCENT) }
     Surface(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onPlay),
+        modifier = Modifier.fillMaxWidth().elevatedCard(RoundedCornerShape(16.dp), 3.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onPlay),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = .045f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+        color = CARD_RAISED.copy(alpha = .9f),
+        border = null
     ) {
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             rank?.let {
