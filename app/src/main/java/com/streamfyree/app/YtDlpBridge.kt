@@ -24,6 +24,15 @@ class YtDlpBridge {
         val raw = module.callAttr("find_lyrics_and_resolve", artist, title).toString()
         val o = JSONObject(raw)
 
+        val headers = mutableMapOf<String, String>()
+        o.optJSONObject("http_headers")?.let { h ->
+            h.keys().forEach { key ->
+                val value = h.optString(key)
+                if (value.isNotBlank()) headers[key] = value
+            }
+        }
+        PlaybackRequestHeaders.set(headers)
+
         return YtDlpResult(
             id = o.getString("id"),
             title = o.optString("title", title),
