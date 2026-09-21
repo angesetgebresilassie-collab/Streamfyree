@@ -63,10 +63,17 @@ def _search(query, artist, title):
     return entries[0]
 
 
+# Keep this list limited to currently published Piped API endpoints.
+# Dead instances can fail DNS resolution on Android and make the resolver
+# appear completely broken even when another instance is healthy.
 PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
+    "https://pipedapi.tokhmi.xyz",
+    "https://pipedapi.moomoo.me",
+    "https://pipedapi.syncpundit.io",
+    "https://api-piped.mha.fi",
+    "https://piped-api.garudalinux.org",
     "https://pipedapi.leptons.xyz",
-    "https://pipedapi.nosebs.ru",
     "https://piped-api.privacy.com.de",
     "https://pipedapi.adminforge.de",
     "https://api.piped.yt",
@@ -160,25 +167,48 @@ def find_lyrics_and_resolve(artist, title):
 
     url = webpage_url or "https://www.youtube.com/watch?v=" + video_id
 
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "noplaylist": True,
-        "socket_timeout": 25,
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web_embedded", "tv"],
-            }
-        },
-    }
+    # YouTube changes client availability frequently. Try several clients
+    # before touching Piped, and never let a dead Piped DNS entry hide the
+    # actual YouTube resolver error.
+    client_sets = [
+        ["web_embedded", "tv"],
+        ["web"],
+        ["ios", "web"],
+    ]
+    info = None
+    youtube_errors = []
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except Exception:
-        return json.dumps(_piped_resolve(artist, title))
+    for clients in client_sets:
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 25,
+            "format": "bestaudio[ext=m4a]/bestaudio/best",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": clients,
+                }
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            if info:
+                break
+        except Exception as exc:
+            youtube_errors.append(f"{','.join(clients)}: {exc}")
+
+    if not info:
+        try:
+            return json.dumps(_piped_resolve(artist, title))
+        except Exception as piped_error:
+            detail = youtube_errors[-1] if youtube_errors else "unknown YouTube error"
+            raise RuntimeError(
+                "YouTube extraction failed after all client profiles; "
+                f"Piped fallback also failed: {piped_error}; last YouTube error: {detail}"
+            ) from piped_error
 
     stream_url = _text(info.get("url"))
     if not stream_url:
@@ -197,7 +227,13 @@ def find_lyrics_and_resolve(artist, title):
         stream_url = _text(formats[0].get("url")) if formats else ""
 
     if not stream_url:
-        return json.dumps(_piped_resolve(artist, title))
+        try:
+            return json.dumps(_piped_resolve(artist, title))
+        except Exception as piped_error:
+            raise RuntimeError(
+                "YouTube returned no playable stream; Piped fallback failed: "
+                + str(piped_error)
+            ) from piped_error
 
     http_headers = {
         str(key): str(value)
