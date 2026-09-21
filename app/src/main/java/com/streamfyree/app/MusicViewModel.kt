@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -180,11 +181,15 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                c.stop()
-                c.setMediaItem(mediaItem)
-                c.prepare()
-                delay(300)
-                c.play()
+                // MediaController is a Player implementation and must be accessed
+                // from its application looper. The resolver runs on Dispatchers.IO,
+                // so marshal every controller call back to the main looper.
+                withContext(Dispatchers.Main.immediate) {
+                    c.stop()
+                    c.setMediaItem(mediaItem)
+                    c.prepare()
+                    c.playWhenReady = true
+                }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     loading = false,
@@ -214,10 +219,24 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         val i = _queue.value.indexOfFirst { it.id == _current.value?.id }
         if (i > 0) play(_queue.value[i - 1])
     }
-    fun togglePlayPause() { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
-    fun seekTo(positionMs: Long) { controller?.seekTo(positionMs.coerceAtLeast(0)) }
+    fun togglePlayPause() {
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            controller?.let { if (it.isPlaying) it.pause() else it.play() }
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            controller?.seekTo(positionMs.coerceAtLeast(0))
+        }
+    }
+
     fun refreshProgress() {
-        controller?.let { _progress.value = PlaybackProgress(it.currentPosition, it.duration.coerceAtLeast(0)) }
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            controller?.let {
+                _progress.value = PlaybackProgress(it.currentPosition, it.duration.coerceAtLeast(0))
+            }
+        }
     }
 
     fun saveTrack(track: Track) {
@@ -262,5 +281,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             o.optString("artwork").ifBlank { null }, o.optLong("duration"),
             o.optString("youtube").ifBlank { null }, o.optString("stream").ifBlank { null }, o.optBoolean("lyric"))
     }.getOrNull()
-    override fun onCleared() { controller?.release(); super.onCleared() }
+    override fun onCleared() {
+        MediaController.releaseFuture(controllerFuture)
+        super.onCleared()
+    }
 }
