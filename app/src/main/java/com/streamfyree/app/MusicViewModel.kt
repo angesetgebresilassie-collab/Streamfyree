@@ -109,7 +109,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     fun play(track: Track) {
         when (_mode.value) {
-            PlaybackMode.ONLINE -> resolveAndPlay(track, false)
+            PlaybackMode.ONLINE -> resolveAndPlay(track, true)
             PlaybackMode.NATIVE -> resolveAndPlay(track, true)
             PlaybackMode.AUTO -> resolveAndPlay(track, true)
         }

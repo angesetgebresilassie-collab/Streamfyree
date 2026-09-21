@@ -19,7 +19,6 @@ def _score(entry, artist, title):
     text = _text(entry.get("title"))
     low = text.lower()
     score = 0
-
     if "lyrics" in low or "lyric" in low:
         score += 100
     if "official lyric" in low:
@@ -34,7 +33,6 @@ def _score(entry, artist, title):
         score -= 20
     if "reaction" in low:
         score -= 50
-
     score += 8 * len(_tokens(title) & _tokens(text))
     score += 6 * len(_tokens(artist) & _tokens(text))
     return score
@@ -50,17 +48,15 @@ def _search(query, artist, title):
         "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv", "android_vr"],
+                "player_client": ["android_vr", "web"],
             }
         },
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info("ytsearch8:" + query + " lyric video", download=False)
-
     entries = [e for e in (info or {}).get("entries", []) if e]
     if not entries:
         raise RuntimeError("No YouTube lyrics video found")
-
     entries.sort(key=lambda e: _score(e, artist, title), reverse=True)
     return entries[0]
 
@@ -84,10 +80,13 @@ def find_lyrics_and_resolve(artist, title):
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 25,
-        "format": "best[acodec!=none][vcodec!=none]/best",
+        # Prefer a simple AAC/M4A audio stream that Android/Media3 can decode
+        # directly. Fall back to any audio stream rather than requiring a
+        # combined video+audio format.
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv", "android_vr"],
+                "player_client": ["android_vr", "web"],
             }
         },
     }
@@ -99,27 +98,27 @@ def find_lyrics_and_resolve(artist, title):
     if not stream_url:
         formats = [
             f for f in (info.get("formats") or [])
-            if f.get("url") and f.get("acodec") not in (None, "none") and f.get("vcodec") not in (None, "none")
+            if f.get("url") and f.get("acodec") not in (None, "none")
         ]
-        formats.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
+        formats.sort(
+            key=lambda f: (
+                1 if f.get("ext") == "m4a" else 0,
+                f.get("abr") or 0,
+                f.get("tbr") or 0,
+            ),
+            reverse=True,
+        )
         stream_url = _text(formats[0].get("url")) if formats else ""
 
     if not stream_url:
-        raise RuntimeError("yt-dlp found the YouTube video but no playable video+audio stream")
+        raise RuntimeError("yt-dlp found the YouTube video but no playable audio stream")
 
-    print(json.dumps({
+    result = {
         "id": video_id,
         "title": _text(info.get("title")) or title,
         "artist": _text(info.get("uploader")) or artist,
         "youtube_url": url,
         "stream_url": stream_url,
         "duration_ms": int((info.get("duration") or 0) * 1000),
-    }))
-    return json.dumps({
-        "id": video_id,
-        "title": _text(info.get("title")) or title,
-        "artist": _text(info.get("uploader")) or artist,
-        "youtube_url": url,
-        "stream_url": stream_url,
-        "duration_ms": int((info.get("duration") or 0) * 1000),
-    })
+    }
+    return json.dumps(result)
