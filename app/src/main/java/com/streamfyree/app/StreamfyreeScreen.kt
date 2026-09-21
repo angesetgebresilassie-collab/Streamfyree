@@ -3,9 +3,9 @@ package com.streamfyree.app.ui
 import android.content.Intent
 import android.webkit.WebView
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -85,7 +85,6 @@ private fun rememberArtworkColor(artwork: String?): Color {
                 val loader = coil3.SingletonImageLoader.get(context)
                 val request = coil3.request.ImageRequest.Builder(context)
                     .data(artwork)
-                    .allowHardware(false)
                     .size(160)
                     .build()
                 val image = (loader.execute(request) as? coil3.request.SuccessResult)?.image
