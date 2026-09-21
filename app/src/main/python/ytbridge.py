@@ -48,7 +48,9 @@ def _search(query, artist, title):
         "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android_vr", "web"],
+                # Avoid android_vr: current YouTube GVS URLs from this
+                # client can return HTTP 403 even for format 18.
+                "player_client": ["web_embedded", "tv"],
             }
         },
     }
@@ -69,6 +71,7 @@ PIPED_INSTANCES = [
     "https://pipedapi.adminforge.de",
     "https://api.piped.yt",
 ]
+
 
 def _http_json(url):
     import urllib.request
@@ -102,11 +105,7 @@ def _piped_resolve(artist, title):
             if not items:
                 continue
 
-            def score(item):
-                text = _text(item.get("title"))
-                return _score({"title": text}, artist, title)
-
-            items.sort(key=score, reverse=True)
+            items.sort(key=lambda item: _score({"title": _text(item.get("title"))}, artist, title), reverse=True)
             video_url = _text(items[0].get("url"))
             video_id = video_url.rsplit("v=", 1)[-1].split("&", 1)[0]
             if not video_id:
@@ -135,6 +134,10 @@ def _piped_resolve(artist, title):
                 "youtube_url": "https://www.youtube.com/watch?v=" + video_id,
                 "stream_url": _text(stream.get("url")),
                 "duration_ms": int((stream_data.get("duration") or 0) * 1000),
+                "http_headers": {
+                    "User-Agent": "Streamfyree/1.0 (Android)",
+                    "Referer": "https://www.youtube.com/",
+                },
             }
         except Exception as exc:
             last_error = exc
@@ -163,13 +166,10 @@ def find_lyrics_and_resolve(artist, title):
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 25,
-        # Prefer a simple AAC/M4A audio stream that Android/Media3 can decode
-        # directly. Fall back to any audio stream rather than requiring a
-        # combined video+audio format.
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "extractor_args": {
             "youtube": {
-                "player_client": ["android_vr", "web"],
+                "player_client": ["web_embedded", "tv"],
             }
         },
     }
@@ -199,12 +199,18 @@ def find_lyrics_and_resolve(artist, title):
     if not stream_url:
         return json.dumps(_piped_resolve(artist, title))
 
-    result = {
+    http_headers = {
+        str(key): str(value)
+        for key, value in (info.get("http_headers") or {}).items()
+        if value
+    }
+
+    return json.dumps({
         "id": video_id,
         "title": _text(info.get("title")) or title,
         "artist": _text(info.get("uploader")) or artist,
         "youtube_url": url,
         "stream_url": stream_url,
         "duration_ms": int((info.get("duration") or 0) * 1000),
-    }
-    return json.dumps(result)
+        "http_headers": http_headers,
+    })
