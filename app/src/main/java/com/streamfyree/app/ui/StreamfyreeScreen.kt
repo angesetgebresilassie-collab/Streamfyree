@@ -1,5 +1,6 @@
 package com.streamfyree.app.ui
 
+import android.content.Intent
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -21,16 +22,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -806,27 +810,49 @@ private fun FullPlayer(
     onToggleSaved: () -> Unit,
     onQueue: () -> Unit
 ) {
+    val context = LocalContext.current
+    var heartPressed by remember { mutableStateOf(false) }
+
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Box(Modifier.fillMaxSize().background(BG)) {
-            AsyncImage(
-                model = track.artwork,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize().alpha(.30f),
-                contentScale = ContentScale.Crop
-            )
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .background(BG)
+        ) {
+            Crossfade(
+                targetState = track.artwork,
+                animationSpec = androidx.compose.animation.core.tween(500),
+                label = "artwork-background"
+            ) { artwork ->
+                AsyncImage(
+                    model = artwork,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(42.dp)
+                        .alpha(.62f),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
             Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF555555).copy(alpha = .34f),
-                            BG.copy(alpha = .90f),
-                            BG
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = .28f),
+                                Color.Black.copy(alpha = .58f),
+                                BG.copy(alpha = .96f)
+                            )
                         )
                     )
-                )
             )
 
             Column(
@@ -836,141 +862,261 @@ private fun FullPlayer(
                     .padding(horizontal = 22.dp)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 6.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .height(58.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.KeyboardArrowDown, null, tint = TEXT, modifier = Modifier.size(34.dp))
-                    }
+                    GlassIconButton(
+                        icon = Icons.Default.KeyboardArrowDown,
+                        onClick = onDismiss
+                    )
                     Text(
                         "Now Playing",
-                        color = TEXT.copy(alpha = .86f),
+                        color = TEXT.copy(alpha = .9f),
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp
                     )
-                    IconButton(onClick = { if (queue.isNotEmpty()) onQueue() }) {
-                        Icon(Icons.Default.MoreVert, null, tint = TEXT)
+                    GlassIconButton(
+                        icon = Icons.Default.MoreVert,
+                        onClick = { if (queue.isNotEmpty()) onQueue() }
+                    )
+                }
+
+                val artworkSize = minOf(maxWidth * .90f, maxHeight * .48f)
+                Spacer(Modifier.height(10.dp))
+
+                Crossfade(
+                    targetState = track.artwork,
+                    animationSpec = androidx.compose.animation.core.tween(450),
+                    label = "main-artwork"
+                ) { artwork ->
+                    Box(
+                        Modifier
+                            .size(artworkSize)
+                            .align(Alignment.CenterHorizontally)
+                            .clip(RoundedCornerShape(30.dp))
+                    ) {
+                        AsyncImage(
+                            model = artwork,
+                            contentDescription = track.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
-
-                if ((mode == PlaybackMode.ONLINE || mode == PlaybackMode.AUTO) && !track.youtubeUrl.isNullOrBlank()) {
-                    YouTubeView(
-                        track.youtubeUrl!!,
-                        Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(30.dp))
-                    )
-                } else {
-                    Artwork(
-                        track,
-                        Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(30.dp))
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(if (maxHeight < 760.dp) 14.dp else 20.dp))
 
                 Text(
                     track.title,
                     color = TEXT,
-                    fontSize = 28.sp,
+                    fontSize = 30.sp,
+                    lineHeight = 34.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 Text(
                     track.artist,
-                    color = Color.White.copy(alpha = .78f),
-                    fontSize = 16.sp,
-                    maxLines = 2,
+                    color = Color.White.copy(alpha = .82f),
+                    fontSize = 17.sp,
+                    lineHeight = 22.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Slider(
-                    value = progress.positionMs.coerceIn(0L, progress.durationMs.coerceAtLeast(1L)).toFloat(),
+                    value = progress.positionMs
+                        .coerceIn(0L, progress.durationMs.coerceAtLeast(1L))
+                        .toFloat(),
                     onValueChange = { onSeek(it.toLong()) },
                     valueRange = 0f..progress.durationMs.coerceAtLeast(1L).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.Transparent,
-                        activeTrackColor = Color.White.copy(alpha = .82f),
-                        inactiveTrackColor = Color.White.copy(alpha = .18f)
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White.copy(alpha = .92f),
+                        inactiveTrackColor = Color.White.copy(alpha = .20f)
                     )
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(formatTime(progress.positionMs), color = MUTED, fontSize = 12.sp)
                     Text(formatTime(progress.durationMs), color = MUTED, fontSize = 12.sp)
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
 
-                Surface(
-                    Modifier.fillMaxWidth(),
-                    RoundedCornerShape(42.dp),
-                    color = Color.White.copy(alpha = .11f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = .10f))
+                GlassPill(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (maxHeight < 760.dp) 132.dp else 154.dp)
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().height(100.dp).padding(horizontal = 26.dp),
+                        Modifier.fillMaxSize().padding(horizontal = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        IconButton(onClick = onPrevious, modifier = Modifier.size(58.dp)) {
-                            Icon(Icons.Default.SkipPrevious, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                        IconButton(
+                            onClick = onPrevious,
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
                         }
+
                         FilledIconButton(
                             onClick = onToggle,
-                            modifier = Modifier.size(74.dp),
+                            modifier = Modifier.size(if (maxHeight < 760.dp) 112.dp else 128.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = ACCENT,
                                 contentColor = Color.Black
                             )
                         ) {
+                            AnimatedContent(
+                                targetState = playing,
+                                transitionSpec = {
+                                    androidx.compose.animation.fadeIn(
+                                        androidx.compose.animation.core.tween(160)
+                                    ) togetherWith androidx.compose.animation.fadeOut(
+                                        androidx.compose.animation.core.tween(120)
+                                    )
+                                },
+                                label = "play-pause"
+                            ) { isNowPlaying ->
+                                Icon(
+                                    if (isNowPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    null,
+                                    modifier = Modifier.size(56.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onNext,
+                            modifier = Modifier.size(64.dp)
+                        ) {
                             Icon(
-                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                Icons.Default.SkipNext,
                                 null,
+                                tint = Color.White,
                                 modifier = Modifier.size(38.dp)
                             )
-                        }
-                        IconButton(onClick = onNext, modifier = Modifier.size(58.dp)) {
-                            Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(36.dp))
                         }
                     }
                 }
 
                 Spacer(Modifier.weight(1f))
 
-                Surface(
-                    Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp),
-                    RoundedCornerShape(34.dp),
-                    color = Color.White.copy(alpha = .11f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = .10f))
+                GlassPill(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(310.dp)
+                        .height(70.dp)
+                        .padding(bottom = 8.dp)
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        Modifier.fillMaxSize(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(25.dp))
+                        IconButton(
+                            onClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Listening to ${track.title} by ${track.artist}"
+                                    )
+                                    putExtra(Intent.EXTRA_TITLE, track.title)
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(sendIntent, "Share track")
+                                )
+                            }
+                        ) {
+                            Icon(Icons.Default.Share, "Share", tint = Color.White, modifier = Modifier.size(25.dp))
                         }
-                        IconButton(onClick = onToggleSaved) {
+
+                        IconButton(
+                            onClick = {
+                                heartPressed = true
+                                onToggleSaved()
+                            }
+                        ) {
+                            val scale by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = if (heartPressed) 1.22f else 1f,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = .55f,
+                                    stiffness = 500f
+                                ),
+                                finishedListener = { heartPressed = false },
+                                label = "heart-scale"
+                            )
                             Icon(
                                 if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                null,
+                                "Favorite",
                                 tint = if (isSaved) ACCENT else Color.White,
-                                modifier = Modifier.size(27.dp)
+                                modifier = Modifier.size(28.dp).scale(scale)
                             )
                         }
+
                         IconButton(onClick = onQueue) {
-                            Icon(Icons.Default.QueueMusic, null, tint = Color.White, modifier = Modifier.size(27.dp))
+                            Icon(
+                                Icons.Default.QueueMusic,
+                                "Queue",
+                                tint = Color.White,
+                                modifier = Modifier.size(27.dp)
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GlassPill(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(48.dp),
+        color = Color.White.copy(alpha = .11f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = .14f)),
+        shadowElevation = 2.dp
+    ) {
+        Row(content = content)
+    }
+}
+
+@Composable
+private fun GlassIconButton(
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = .06f))
+    ) {
+        Icon(icon, null, tint = TEXT, modifier = Modifier.size(29.dp))
     }
 }
 
