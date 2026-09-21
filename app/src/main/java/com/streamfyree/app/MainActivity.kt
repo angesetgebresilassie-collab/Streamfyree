@@ -6,13 +6,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.streamfyree.app.ui.DebugLogOverlay
 import com.streamfyree.app.ui.StreamfyreeScreen
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +60,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = colors, typography = typography) {
                 val vm: MusicViewModel = viewModel()
-                StreamfyreeScreen(vm)
+                Box {
+                    StreamfyreeScreen(vm)
+                    DebugLogOverlay(vm)
+                }
             }
         }
     }
