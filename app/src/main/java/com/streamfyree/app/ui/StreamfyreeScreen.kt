@@ -131,8 +131,8 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                 }
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     IconButton(onClick={vm.previous()}){Icon(Icons.Default.SkipPrevious,null,tint=TEXT)}
-                    FilledIconButton(onClick={vm.togglePlayPause},colors=IconButtonDefaults.filledIconButtonColors(containerColor=ACCENT,contentColor=BG),modifier=Modifier.size(64.dp)){Icon(if(playing)Icons.Default.Pause else Icons.Default.PlayArrow,null)}
-                    IconButton(onClick={vm.next}){Icon(Icons.Default.SkipNext,null,tint=TEXT)}
+                    FilledIconButton(onClick={vm::togglePlayPause},colors=IconButtonDefaults.filledIconButtonColors(containerColor=ACCENT,contentColor=BG),modifier=Modifier.size(64.dp)){Icon(if(playing)Icons.Default.Pause else Icons.Default.PlayArrow,null)}
+                    IconButton(onClick={vm::next}){Icon(Icons.Default.SkipNext,null,tint=TEXT)}
                 }
                 TextButton(onClick={if(vm.isSaved(t))vm.unsaveTrack(t)else vm.saveTrack(t)}){Text(if(vm.isSaved(t))"Remove from favorites" else "Add to favorites",color=ACCENT)}
             }
