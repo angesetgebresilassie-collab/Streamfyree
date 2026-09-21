@@ -58,6 +58,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     val progress: StateFlow<PlaybackProgress> = _progress
 
     init {
+        DebugLogger.info("PLAYER", "MusicViewModel initialized; waiting for MediaController")
         viewModelScope.launch {
             val prefs = app.streamfyreeDataStore.data.first()
             _library.value = LibraryState(prefs[savedKey].orEmpty().mapNotNull(::decodeTrack))
@@ -71,16 +72,29 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             val c = runCatching { controllerFuture.get() }.getOrNull() ?: return@addListener
             controller = c
             controllerReady = true
+            DebugLogger.info("PLAYER", "MediaController connected successfully")
             c.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(v: Boolean) { _isPlaying.value = v }
+                override fun onIsPlayingChanged(v: Boolean) {
+                    _isPlaying.value = v
+                    DebugLogger.info("PLAYER", "isPlaying=$v")
+                }
                 override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
                     _current.value = _queue.value.firstOrNull { it.id == item?.mediaId } ?: _current.value
                 }
                 override fun onPlaybackStateChanged(state: Int) {
+                    DebugLogger.info("PLAYER", "Playback state changed: $state")
                     if (state == Player.STATE_ENDED) playNextAutomatic()
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    _state.value = _state.value.copy(error = "Playback error: ${error.message}")
+                    val detail = buildString {
+                        append("PlaybackException code=${error.errorCode} (${error.errorCodeName})")
+                        append("\nmessage=${error.message}")
+                        append("\nmediaId=${c.currentMediaItem?.mediaId}")
+                        append("\nuri=${c.currentMediaItem?.localConfiguration?.uri}")
+                        error.cause?.let { append("\ncause=${it::class.java.name}: ${it.message}") }
+                    }
+                    DebugLogger.error("EXOPLAYER", detail, error)
+                    _state.value = _state.value.copy(error = "Playback error: ${error.message ?: error.errorCodeName}")
                 }
             })
             _isPlaying.value = c.isPlaying
@@ -122,6 +136,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         // for the network resolve to finish. The UI listens on `current`, so
         // setting it up front is what makes the player open instantly on tap.
         _current.value = track
+        DebugLogger.info("RESOLVE", "Starting playback for '${track.title}' — ${track.artist}")
         _state.value = _state.value.copy(loading = true, error = null)
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -132,12 +147,15 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     attempts++
                 }
                 if (!controllerReady) {
+                    DebugLogger.error("PLAYER", "MediaController did not become ready within 5 seconds")
                     _state.value = _state.value.copy(loading = false, error = "Player not ready. Please try again.")
                     return@launch
                 }
 
                 val resolved = if (native) {
+                    DebugLogger.info("YTDLP", "Resolving stream for '${track.artist} — ${track.title}'")
                     val r = ytDlp.findLyricsAndResolve(track.artist, track.title)
+                    DebugLogger.info("YTDLP", "Resolved video=${r.id}, title='${r.title}', stream URL present=${r.streamUrl.isNotBlank()}")
                     track.copy(
                         id = r.id,
                         title = r.title,
@@ -163,6 +181,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
                 val url = resolved.streamUrl
                 if (url.isNullOrBlank()) {
+                    DebugLogger.error("RESOLVE", "Resolver returned an empty stream URL")
                     _state.value = _state.value.copy(error = "No stream URL available for this track")
                     return@launch
                 }
@@ -182,6 +201,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
                 val c = controller
                 if (c == null) {
+                    DebugLogger.error("PLAYER", "MediaController became null after stream resolution")
                     _state.value = _state.value.copy(error = "Player connection lost")
                     return@launch
                 }
@@ -189,6 +209,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 // MediaController is a Player implementation and must be accessed
                 // from its application looper. The resolver runs on Dispatchers.IO,
                 // so marshal every controller call back to the main looper.
+                DebugLogger.info("PLAYER", "Preparing resolved stream; URL host=${runCatching { Uri.parse(url).host }.getOrNull() ?: "unknown"}")
                 withContext(Dispatchers.Main.immediate) {
                     c.stop()
                     c.setMediaItem(mediaItem)
@@ -196,6 +217,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     c.playWhenReady = true
                 }
             } catch (e: Exception) {
+                DebugLogger.error("RESOLVE", "Playback pipeline failed: ${e.message ?: e::class.java.simpleName}", e)
                 _state.value = _state.value.copy(
                     loading = false,
                     error = e.message ?: "Failed to play track"
