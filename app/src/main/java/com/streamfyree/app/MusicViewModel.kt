@@ -28,6 +28,7 @@ import org.json.JSONObject
 private val Application.streamfyreeDataStore by preferencesDataStore("streamfyree")
 
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
+    private val newPipe = NewPipeBridge()
     private val ytDlp = YtDlpBridge()
     private val itunes = ItunesApi()
     private val controllerFuture: ListenableFuture<MediaController>
@@ -158,17 +159,37 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
                 val resolved = if (native) {
                     DebugLogger.info("YTDLP", "Resolving stream for '${track.artist} — ${track.title}'")
-                    val r = ytDlp.findLyricsAndResolve(track.artist, track.title)
-                    DebugLogger.info("YTDLP", "Resolved video=${r.id}, title='${r.title}', stream URL present=${r.streamUrl.isNotBlank()}")
-                    track.copy(
-                        id = r.id,
-                        title = r.title,
-                        artist = r.artist,
-                        youtubeUrl = r.youtubeUrl,
-                        streamUrl = r.streamUrl,
-                        durationMs = r.durationMs,
-                        lyricVideo = true
-                    )
+                    val search = ytDlp.findLyricsAndResolve(track.artist, track.title)
+                    DebugLogger.info("NEWPIPE", "Resolving fresh audio stream from video=${search.id}")
+                    val r = runCatching {
+                        newPipe.resolve(search.youtubeUrl, search.artist, search.title)
+                    }.onFailure {
+                        DebugLogger.error("NEWPIPE", "NewPipe extraction failed; using yt-dlp audio URL fallback: ${it.message}", it)
+                    }.getOrNull()
+
+                    if (r != null) {
+                        DebugLogger.info("NEWPIPE", "Resolved audio-only stream; URL present=${r.streamUrl.isNotBlank()}")
+                        track.copy(
+                            id = r.id,
+                            title = r.title,
+                            artist = r.artist,
+                            youtubeUrl = r.youtubeUrl,
+                            streamUrl = r.streamUrl,
+                            durationMs = r.durationMs,
+                            lyricVideo = true
+                        )
+                    } else {
+                        DebugLogger.info("YTDLP", "Using yt-dlp fallback stream for video=${search.id}")
+                        track.copy(
+                            id = search.id,
+                            title = search.title,
+                            artist = search.artist,
+                            youtubeUrl = search.youtubeUrl,
+                            streamUrl = search.streamUrl,
+                            durationMs = search.durationMs,
+                            lyricVideo = true
+                        )
+                    }
                 } else {
                     track.copy(
                         youtubeUrl = "https://www.youtube.com/results?search_query=" +
