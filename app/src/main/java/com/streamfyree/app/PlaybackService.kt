@@ -1,6 +1,7 @@
 package com.streamfyree.app
 
 import android.content.Intent
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -14,12 +15,18 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(
-                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"
-            )
-            .setAllowCrossProtocolRedirects(true)
+        // Apply the exact headers yt-dlp used when creating the signed
+        // googlevideo URL. A valid signed URL can otherwise return 403.
+        val httpDataSourceFactory = DataSource.Factory {
+            val dataSource = DefaultHttpDataSource.Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .createDataSource()
+
+            PlaybackRequestHeaders.current().forEach { (name, value) ->
+                dataSource.setRequestProperty(name, value)
+            }
+            dataSource
+        }
 
         val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
@@ -35,9 +42,7 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!player.playWhenReady) {
-            stopSelf()
-        }
+        if (!player.playWhenReady) stopSelf()
         super.onTaskRemoved(rootIntent)
     }
 
