@@ -10,7 +10,8 @@ data class YtDlpResult(
     val youtubeUrl: String,
     val streamUrl: String,
     val durationMs: Long,
-    val lyricVideo: Boolean
+    val lyricVideo: Boolean,
+    val httpHeaders: Map<String, String> = emptyMap()
 )
 
 class YtDlpBridge {
@@ -38,9 +39,10 @@ class YtDlpBridge {
             title = o.optString("title", title),
             artist = o.optString("artist", artist),
             youtubeUrl = o.getString("youtube_url"),
-            streamUrl = o.getString("stream_url"),
+            streamUrl = o.optString("stream_url", ""),
             durationMs = o.optLong("duration_ms", 0L),
-            lyricVideo = true
+            lyricVideo = true,
+            httpHeaders = headers
         )
     }
 }

@@ -167,7 +167,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         DebugLogger.error("NEWPIPE", "NewPipe extraction failed; using yt-dlp audio URL fallback: ${it.message}", it)
                     }.getOrNull()
 
-                    if (r != null) {
+                    if (r != null && r.streamUrl.isNotBlank()) {
                         DebugLogger.info("NEWPIPE", "Resolved audio-only stream; URL present=${r.streamUrl.isNotBlank()}")
                         track.copy(
                             id = r.id,
@@ -180,6 +180,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     } else {
                         DebugLogger.info("YTDLP", "Using yt-dlp fallback stream for video=${search.id}")
+                        PlaybackRequestHeaders.set(search.httpHeaders)
                         track.copy(
                             id = search.id,
                             title = search.title,

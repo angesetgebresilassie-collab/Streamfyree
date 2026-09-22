@@ -48,9 +48,7 @@ def _search(query, artist, title):
         "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
-                # Avoid android_vr: current YouTube GVS URLs from this
-                # client can return HTTP 403 even for format 18.
-                "player_client": ["web_embedded", "tv"],
+                "player_client": ["android", "mweb", "web_embedded", "tv"],
             }
         },
     }
@@ -63,9 +61,6 @@ def _search(query, artist, title):
     return entries[0]
 
 
-# Keep this list limited to currently published Piped API endpoints.
-# Dead instances can fail DNS resolution on Android and make the resolver
-# appear completely broken even when another instance is healthy.
 PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://pipedapi.tokhmi.xyz",
@@ -89,7 +84,7 @@ def _http_json(url):
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=12) as response:
+    with urllib.request.urlopen(req, timeout=8) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -167,11 +162,12 @@ def find_lyrics_and_resolve(artist, title):
 
     url = webpage_url or "https://www.youtube.com/watch?v=" + video_id
 
-    # YouTube changes client availability frequently. Try several clients
-    # before touching Piped, and never let a dead Piped DNS entry hide the
-    # actual YouTube resolver error.
     client_sets = [
-        ["web_embedded", "tv"],
+        ["android"],
+        ["android_vr"],
+        ["tv_embedded"],
+        ["android_creator"],
+        ["web_embedded", "android"],
         ["web"],
         ["ios", "web"],
     ]
@@ -203,12 +199,16 @@ def find_lyrics_and_resolve(artist, title):
     if not info:
         try:
             return json.dumps(_piped_resolve(artist, title))
-        except Exception as piped_error:
-            detail = youtube_errors[-1] if youtube_errors else "unknown YouTube error"
-            raise RuntimeError(
-                "YouTube extraction failed after all client profiles; "
-                f"Piped fallback also failed: {piped_error}; last YouTube error: {detail}"
-            ) from piped_error
+        except Exception:
+            return json.dumps({
+                "id": video_id,
+                "title": _text(candidate.get("title")) or title,
+                "artist": _text(candidate.get("uploader")) or artist,
+                "youtube_url": url,
+                "stream_url": "",
+                "duration_ms": int((candidate.get("duration") or 0) * 1000),
+                "http_headers": {},
+            })
 
     stream_url = _text(info.get("url"))
     if not stream_url:
@@ -229,11 +229,16 @@ def find_lyrics_and_resolve(artist, title):
     if not stream_url:
         try:
             return json.dumps(_piped_resolve(artist, title))
-        except Exception as piped_error:
-            raise RuntimeError(
-                "YouTube returned no playable stream; Piped fallback failed: "
-                + str(piped_error)
-            ) from piped_error
+        except Exception:
+            return json.dumps({
+                "id": video_id,
+                "title": _text(info.get("title")) or _text(candidate.get("title")) or title,
+                "artist": _text(info.get("uploader")) or _text(candidate.get("uploader")) or artist,
+                "youtube_url": url,
+                "stream_url": "",
+                "duration_ms": int(((info.get("duration") or candidate.get("duration") or 0)) * 1000),
+                "http_headers": {},
+            })
 
     http_headers = {
         str(key): str(value)
