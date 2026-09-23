@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.streamfyree.app.ui.DebugLogOverlay
 import com.streamfyree.app.ui.StreamfyreeScreen
+import com.streamfyree.app.ui.YumaTheme
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission =
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            MaterialTheme(colorScheme = colors, typography = typography) {
+            YumaTheme {
                 val vm: MusicViewModel = viewModel()
                 Box {
                     StreamfyreeScreen(vm)
