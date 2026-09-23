@@ -1,11 +1,8 @@
 package com.streamfyree.app.ui
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -26,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.HeartBroken
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.QueueMusic
@@ -37,15 +33,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -63,7 +59,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
     val currentTrack by vm.current.collectAsState()
 
-    // Periodically update progress slider
+    // Periodically refresh progress for seeker slider
     LaunchedEffect(Unit) {
         while (true) {
             vm.refreshProgress()
@@ -93,7 +89,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
             Crossfade(targetState = selectedTab, label = "TabTransition") { tab ->
                 when (tab) {
-                    0 -> YumaHomeContent(vm, onPlayTrack = { vm.play(it) }, onOpenSearch = { selectedTab = 1 })
+                    0 -> YumaHomeContent(vm, onPlayTrack = { vm.play(it) })
                     1 -> YumaSearchContent(vm, onPlayTrack = { vm.play(it) })
                     2 -> YumaLibraryContent(vm, onPlayTrack = { vm.play(it) })
                     3 -> YumaSettingsContent(vm, onOpenSleepTimer = { showSleepTimerDialog = true })
@@ -160,6 +156,44 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
             YumaSleepTimerDialog(
                 vm = vm,
                 onDismiss = { showSleepTimerDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtworkImage(
+    artworkUrl: String?,
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 16.dp
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        YumaColors.PrimaryAccent.copy(alpha = 0.35f),
+                        YumaColors.SecondaryAccent.copy(alpha = 0.25f),
+                        YumaColors.GlassCardBg
+                    )
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!artworkUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = artworkUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = null,
+                tint = YumaColors.TextMuted,
+                modifier = Modifier.size(32.dp)
             )
         }
     }
@@ -243,8 +277,7 @@ private fun YumaHeader(
 @Composable
 private fun YumaHomeContent(
     vm: MusicViewModel,
-    onPlayTrack: (Track) -> Unit,
-    onOpenSearch: () -> Unit
+    onPlayTrack: (Track) -> Unit
 ) {
     val discoverTracks by vm.discoverTracks.collectAsState()
     val historyTracks by vm.history.collectAsState()
@@ -266,8 +299,8 @@ private fun YumaHomeContent(
                     .background(
                         Brush.horizontalGradient(
                             listOf(
-                                YumaColors.PrimaryAccent.copy(alpha = 0.4f),
-                                YumaColors.SecondaryAccent.copy(alpha = 0.2f),
+                                YumaColors.PrimaryAccent.copy(alpha = 0.45f),
+                                YumaColors.SecondaryAccent.copy(alpha = 0.25f),
                                 Color.Transparent
                             )
                         )
@@ -282,7 +315,7 @@ private fun YumaHomeContent(
                 ) {
                     Column {
                         Text(
-                            text = "QUICK PICK MIX",
+                            text = "DAILY MIX",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = YumaColors.PrimaryAccent,
@@ -290,20 +323,20 @@ private fun YumaHomeContent(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Your Daily Discovery",
+                            text = "Your Music Discovery",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = YumaColors.TextPrimary
                         )
                         Text(
-                            text = "Fresh tracks curated based on your taste",
+                            text = "Personalized recommendation feed",
                             fontSize = 13.sp,
                             color = YumaColors.TextSecondary
                         )
                     }
 
                     Button(
-                        onClick = { vm.playMix("top hits") },
+                        onClick = { vm.playMix("pop hits") },
                         colors = ButtonDefaults.buttonColors(containerColor = YumaColors.PrimaryAccent),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
@@ -351,7 +384,7 @@ private fun YumaHomeContent(
             }
         }
 
-        // Quick Picks Grid
+        // Quick Picks 2x3 Grid
         if (historyTracks.isNotEmpty() || discoverTracks.isNotEmpty()) {
             item {
                 Column {
@@ -469,13 +502,10 @@ private fun YumaQuickPickTile(track: Track, onClick: () -> Unit) {
             .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.artwork,
-            contentDescription = null,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(10.dp)),
-            contentScale = ContentScale.Crop
+        ArtworkImage(
+            artworkUrl = track.artwork,
+            modifier = Modifier.size(44.dp),
+            cornerRadius = 10.dp
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column(
@@ -509,13 +539,12 @@ private fun YumaTrackCardItem(track: Track, onClick: () -> Unit) {
             .clickable(onClick = onClick)
     ) {
         Box {
-            AsyncImage(
-                model = track.artwork,
-                contentDescription = null,
+            ArtworkImage(
+                artworkUrl = track.artwork,
                 modifier = Modifier
                     .size(140.dp)
                     .glassCard(cornerRadius = 18.dp),
-                contentScale = ContentScale.Crop
+                cornerRadius = 18.dp
             )
             Box(
                 modifier = Modifier
@@ -698,13 +727,10 @@ private fun YumaTrackRow(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.artwork,
-            contentDescription = null,
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Crop
+        ArtworkImage(
+            artworkUrl = track.artwork,
+            modifier = Modifier.size(50.dp),
+            cornerRadius = 12.dp
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(
@@ -1002,13 +1028,10 @@ private fun YumaMiniPlayer(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AsyncImage(
-                    model = track.artwork,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
+                ArtworkImage(
+                    artworkUrl = track.artwork,
+                    modifier = Modifier.size(46.dp),
+                    cornerRadius = 12.dp
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(
@@ -1058,7 +1081,7 @@ private fun YumaMiniPlayer(
                 }
             }
 
-            // Bottom Progress Bar
+            // Bottom Progress Bar Line
             LinearProgressIndicator(
                 progress = { progressFraction },
                 modifier = Modifier
@@ -1146,6 +1169,32 @@ private fun YumaFullPlayerSheet(
             .fillMaxSize()
             .background(YumaColors.Background)
     ) {
+        // Ambient Blurred Artwork Background
+        if (!track.artwork.isNullOrBlank()) {
+            AsyncImage(
+                model = track.artwork,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(50.dp)
+                    .alpha(0.35f),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            YumaColors.Background.copy(alpha = 0.6f),
+                            YumaColors.Background.copy(alpha = 0.95f)
+                        )
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1200,14 +1249,13 @@ private fun YumaFullPlayerSheet(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .aspectRatio(1f)
-                    .glassCard(cornerRadius = 28.dp),
+                    .glassCard(cornerRadius = 28.dp, borderWidth = 1.dp, borderColor = Color.White.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = track.artwork,
-                    contentDescription = null,
+                ArtworkImage(
+                    artworkUrl = track.artwork,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    cornerRadius = 28.dp
                 )
             }
 
@@ -1309,15 +1357,19 @@ private fun YumaFullPlayerSheet(
                 IconButton(
                     onClick = { vm.togglePlayPause() },
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(68.dp)
                         .clip(CircleShape)
-                        .background(YumaColors.PrimaryAccent)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(YumaColors.PrimaryAccent, YumaColors.SecondaryAccent)
+                            )
+                        )
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = "Play/Pause",
                         tint = Color.White,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(38.dp)
                     )
                 }
 
@@ -1565,13 +1617,10 @@ private fun YumaQueueSheet(
                                 .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AsyncImage(
-                                model = track.artwork,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(10.dp)),
-                                contentScale = ContentScale.Crop
+                            ArtworkImage(
+                                artworkUrl = track.artwork,
+                                modifier = Modifier.size(44.dp),
+                                cornerRadius = 10.dp
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {

@@ -223,11 +223,13 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         DebugLogger.info("NEWPIPE", "Resolved audio-only stream; URL present=${r.streamUrl.isNotBlank()}")
                         track.copy(
                             id = r.id,
-                            title = r.title,
-                            artist = r.artist,
+                            title = track.title.ifBlank { r.title },
+                            artist = track.artist.ifBlank { r.artist },
+                            album = track.album,
+                            artwork = track.artwork,
                             youtubeUrl = r.youtubeUrl,
                             streamUrl = r.streamUrl,
-                            durationMs = r.durationMs,
+                            durationMs = if (r.durationMs > 0) r.durationMs else track.durationMs,
                             lyricVideo = true
                         )
                     } else {
@@ -235,11 +237,13 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                         PlaybackRequestHeaders.set(search.httpHeaders)
                         track.copy(
                             id = search.id,
-                            title = search.title,
-                            artist = search.artist,
+                            title = track.title.ifBlank { search.title },
+                            artist = track.artist.ifBlank { search.artist },
+                            album = track.album,
+                            artwork = track.artwork,
                             youtubeUrl = search.youtubeUrl,
                             streamUrl = search.streamUrl,
-                            durationMs = search.durationMs,
+                            durationMs = if (search.durationMs > 0) search.durationMs else track.durationMs,
                             lyricVideo = true
                         )
                     }
