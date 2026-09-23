@@ -281,15 +281,15 @@ private fun TopBar(
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CircleIcon(Icons.Default.Home, tab == 0, onHome, 44.dp)
+        CircleIcon(Icons.Default.Home, "Home", tab == 0, onHome, 44.dp)
         Spacer(Modifier.width(10.dp))
-        CircleIcon(Icons.Default.Search, tab == 1, onSearch, 44.dp)
+        CircleIcon(Icons.Default.Search, "Search", tab == 1, onSearch, 44.dp)
         Spacer(Modifier.weight(1f))
-        CircleIcon(Icons.Default.NotificationsNone, false, {}, 34.dp, false)
-        CircleIcon(Icons.Default.Groups, false, onQueue, 36.dp, false)
+        CircleIcon(Icons.Default.NotificationsNone, "Notifications", false, {}, 34.dp, false)
+        CircleIcon(Icons.Default.Groups, "Queue", false, onQueue, 36.dp, false)
         Spacer(Modifier.width(6.dp))
         Box(
-            Modifier.size(38.dp).clip(CircleShape).clickable(onClick = onLibrary),
+            Modifier.size(38.dp).clip(CircleShape).clickable(onClick = onLibrary, onClickLabel = "Library"),
             contentAlignment = Alignment.Center
         ) {
             if (!profileArt.isNullOrBlank()) {
@@ -311,6 +311,7 @@ private fun TopBar(
 @Composable
 private fun CircleIcon(
     icon: ImageVector,
+    contentDescription: String? = null,
     selected: Boolean,
     onClick: () -> Unit,
     size: Dp,
@@ -327,12 +328,12 @@ private fun CircleIcon(
                     else -> Color.Transparent
                 }
             )
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick, onClickLabel = contentDescription),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             icon,
-            null,
+            contentDescription = contentDescription,
             tint = if (filled && selected) Color.Black else TEXT,
             modifier = Modifier.size(size * 0.5f)
         )
@@ -767,12 +768,16 @@ private fun TrackRow(
             IconButton(onClick = onSave) {
                 Icon(
                     if (saved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    null,
+                    contentDescription = if (saved) "Remove from library" else "Save to library",
                     tint = if (saved) ACCENT else MUTED
                 )
             }
             IconButton(onClick = onQueue) {
-                Icon(Icons.Default.AddCircleOutline, null, tint = MUTED)
+                Icon(
+                    Icons.Default.AddCircleOutline,
+                    contentDescription = "Add to queue",
+                    tint = MUTED
+                )
             }
         }
     }
@@ -824,9 +829,9 @@ private fun MiniPlayer(
                 Text(track.title, color = TEXT, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(track.artist, color = Color.White.copy(alpha = .74f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            PlayerMiniButton(Icons.Default.SkipPrevious, onPrevious)
-            PlayerMiniButton(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, onToggle, true)
-            PlayerMiniButton(Icons.Default.SkipNext, onNext)
+            PlayerMiniButton(Icons.Default.SkipPrevious, "Previous track", onPrevious)
+            PlayerMiniButton(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pause" else "Play", onToggle, true)
+            PlayerMiniButton(Icons.Default.SkipNext, "Next track", onNext)
         }
         Box(
             Modifier
@@ -851,6 +856,7 @@ private fun MiniPlayer(
 @Composable
 private fun PlayerMiniButton(
     icon: ImageVector,
+    contentDescription: String? = null,
     onClick: () -> Unit,
     emphasized: Boolean = false
 ) {
@@ -860,10 +866,10 @@ private fun PlayerMiniButton(
             .size(if (emphasized) 50.dp else 42.dp)
             .clip(CircleShape)
             .background(if (emphasized) Color.White.copy(alpha = .16f) else Color.White.copy(alpha = .10f))
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick, onClickLabel = contentDescription),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(if (emphasized) 28.dp else 22.dp))
+        Icon(icon, contentDescription = contentDescription, tint = Color.White, modifier = Modifier.size(if (emphasized) 28.dp else 22.dp))
     }
 }
 
@@ -972,6 +978,7 @@ private fun FullPlayer(
                 ) {
                     GlassIconButton(
                         icon = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Collapse player",
                         onClick = onDismiss
                     )
                     Text(
@@ -984,6 +991,7 @@ private fun FullPlayer(
                     )
                     GlassIconButton(
                         icon = Icons.Default.MoreVert,
+                        contentDescription = "Queue options",
                         onClick = { if (queue.isNotEmpty()) onQueue() }
                     )
                 }
@@ -1118,7 +1126,7 @@ private fun FullPlayer(
                             ) { isNowPlaying ->
                                 Icon(
                                     if (isNowPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    null,
+                                    contentDescription = if (isNowPlaying) "Pause" else "Play",
                                     modifier = Modifier.size(54.dp)
                                 )
                             }
@@ -1199,7 +1207,7 @@ private fun FullPlayer(
                             )
                             Icon(
                                 if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                "Favorite",
+                                contentDescription = if (isSaved) "Remove from favorites" else "Save to favorites",
                                 tint = if (isSaved) ACCENT else Color.White,
                                 modifier = Modifier.size(28.dp).scale(scale)
                             )
@@ -1240,6 +1248,7 @@ private fun GlassPill(
 @Composable
 private fun GlassIconButton(
     icon: ImageVector,
+    contentDescription: String? = null,
     onClick: () -> Unit
 ) {
     IconButton(
@@ -1249,7 +1258,7 @@ private fun GlassIconButton(
             .clip(CircleShape)
             .background(Color.White.copy(alpha = .06f))
     ) {
-        Icon(icon, null, tint = TEXT, modifier = Modifier.size(29.dp))
+        Icon(icon, contentDescription = contentDescription, tint = TEXT, modifier = Modifier.size(29.dp))
     }
 }
 
