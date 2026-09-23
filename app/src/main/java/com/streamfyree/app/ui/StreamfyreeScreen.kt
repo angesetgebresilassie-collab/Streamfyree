@@ -3,6 +3,10 @@ package com.streamfyree.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -37,7 +41,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,7 +65,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
     val currentTrack by vm.current.collectAsState()
 
-    // Periodically refresh progress for seeker slider
+    // Periodically update progress slider
     LaunchedEffect(Unit) {
         while (true) {
             vm.refreshProgress()
@@ -74,7 +80,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YumaColors.Background)
+            .background(Color(0xFF090A0F))
     ) {
         // Main Screen Content based on selected bottom tab
         Column(
@@ -89,15 +95,15 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 
             Crossfade(targetState = selectedTab, label = "TabTransition") { tab ->
                 when (tab) {
-                    0 -> YumaHomeContent(vm, onPlayTrack = { vm.play(it) })
-                    1 -> YumaSearchContent(vm, onPlayTrack = { vm.play(it) })
-                    2 -> YumaLibraryContent(vm, onPlayTrack = { vm.play(it) })
-                    3 -> YumaSettingsContent(vm, onOpenSleepTimer = { showSleepTimerDialog = true })
+                    0 -> YumaHomeScreen(vm, onPlayTrack = { vm.play(it) })
+                    1 -> YumaSearchScreen(vm, onPlayTrack = { vm.play(it) })
+                    2 -> YumaLibraryScreen(vm, onPlayTrack = { vm.play(it) })
+                    3 -> YumaSettingsScreen(vm, onOpenSleepTimer = { showSleepTimerDialog = true })
                 }
             }
         }
 
-        // Mini Player & Bottom Navigation Bar stacked at bottom
+        // Mini Player & Bottom Floating Navigation Bar
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -114,7 +120,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
                     )
                 }
 
-                YumaBottomNav(
+                YumaFloatingBottomBar(
                     selectedTab = selectedTab,
                     onSelectTab = { selectedTab = it }
                 )
@@ -165,7 +171,7 @@ fun StreamfyreeScreen(vm: MusicViewModel) {
 private fun ArtworkImage(
     artworkUrl: String?,
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 16.dp
+    cornerRadius: Dp = 24.dp
 ) {
     Box(
         modifier = modifier
@@ -173,11 +179,16 @@ private fun ArtworkImage(
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        YumaColors.PrimaryAccent.copy(alpha = 0.35f),
-                        YumaColors.SecondaryAccent.copy(alpha = 0.25f),
-                        YumaColors.GlassCardBg
+                        Color(0xFF6366F1).copy(alpha = 0.35f),
+                        Color(0xFFA855F7).copy(alpha = 0.25f),
+                        Color(0xFF1C1C1E)
                     )
                 )
+            )
+            .border(
+                1.dp,
+                Color.White.copy(alpha = 0.15f),
+                RoundedCornerShape(cornerRadius)
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -192,8 +203,8 @@ private fun ArtworkImage(
             Icon(
                 imageVector = Icons.Default.MusicNote,
                 contentDescription = null,
-                tint = YumaColors.TextMuted,
-                modifier = Modifier.size(32.dp)
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.size(36.dp)
             )
         }
     }
@@ -215,11 +226,11 @@ private fun YumaHeader(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            listOf(YumaColors.PrimaryAccent, YumaColors.SecondaryAccent)
+                            listOf(Color(0xFF6366F1), Color(0xFFA855F7))
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -228,30 +239,36 @@ private fun YumaHeader(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "Streamfyree",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = YumaColors.TextPrimary
+                text = "Yuma",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Player",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color.White.copy(alpha = 0.6f)
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             IconButton(
                 onClick = onOpenSleepTimer,
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(CircleShape)
-                    .background(YumaColors.GlassCardBg)
+                    .glassCard(cornerRadius = 20.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Timer,
                     contentDescription = "Sleep Timer",
-                    tint = YumaColors.TextSecondary,
+                    tint = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -260,13 +277,12 @@ private fun YumaHeader(
                 onClick = onOpenSettings,
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(CircleShape)
-                    .background(YumaColors.GlassCardBg)
+                    .glassCard(cornerRadius = 20.dp)
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = "Settings",
-                    tint = YumaColors.TextSecondary,
+                    tint = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -275,7 +291,7 @@ private fun YumaHeader(
 }
 
 @Composable
-private fun YumaHomeContent(
+private fun YumaHomeScreen(
     vm: MusicViewModel,
     onPlayTrack: (Track) -> Unit
 ) {
@@ -294,56 +310,57 @@ private fun YumaHomeContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .glassCard(cornerRadius = 24.dp)
+                    .height(190.dp)
+                    .glassCard(cornerRadius = 28.dp, borderWidth = 1.dp)
                     .background(
                         Brush.horizontalGradient(
                             listOf(
-                                YumaColors.PrimaryAccent.copy(alpha = 0.45f),
-                                YumaColors.SecondaryAccent.copy(alpha = 0.25f),
+                                Color(0xFF6366F1).copy(alpha = 0.45f),
+                                Color(0xFFA855F7).copy(alpha = 0.25f),
                                 Color.Transparent
                             )
                         )
                     )
-                    .padding(20.dp)
+                    .padding(22.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(0.7f),
+                        .fillMaxWidth(0.72f),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
                         Text(
-                            text = "DAILY MIX",
+                            text = "SPOTIFY & YTM HYBRID",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = YumaColors.PrimaryAccent,
-                            letterSpacing = 1.sp
+                            color = Color(0xFF6366F1),
+                            letterSpacing = 1.2.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Your Music Discovery",
+                            text = "Your Daily Discovery",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = YumaColors.TextPrimary
+                            color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Personalized recommendation feed",
+                            text = "Audiophile quality stream & recommendations",
                             fontSize = 13.sp,
-                            color = YumaColors.TextSecondary
+                            color = Color.White.copy(alpha = 0.65f)
                         )
                     }
 
                     Button(
                         onClick = { vm.playMix("pop hits") },
-                        colors = ButtonDefaults.buttonColors(containerColor = YumaColors.PrimaryAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
                         shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                     ) {
                         Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Play Mix", fontWeight = FontWeight.Bold)
+                        Text("Play Mix", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
@@ -361,23 +378,23 @@ private fun YumaHomeContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSelected) YumaColors.PrimaryAccent else YumaColors.GlassCardBg)
+                            .background(if (isSelected) Color(0xFF6366F1) else Color(0x1AFFFFFF))
                             .border(
-                                0.5.dp,
-                                if (isSelected) Color.Transparent else YumaColors.GlassCardBorder,
+                                1.dp,
+                                if (isSelected) Color.Transparent else Color(0x1FFFFFFF),
                                 RoundedCornerShape(20.dp)
                             )
                             .clickable {
                                 selectedCategory = idx
                                 if (idx == 2) vm.loadPodcasts()
                             }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(horizontal = 18.dp, vertical = 10.dp)
                     ) {
                         Text(
                             text = name,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else YumaColors.TextSecondary
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f)
                         )
                     }
                 }
@@ -390,9 +407,9 @@ private fun YumaHomeContent(
                 Column {
                     Text(
                         text = "Quick Picks",
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary,
+                        color = Color.White,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
@@ -402,7 +419,7 @@ private fun YumaHomeContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 8.dp),
+                                .padding(bottom = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             pair.forEach { track ->
@@ -431,14 +448,14 @@ private fun YumaHomeContent(
                 ) {
                     Text(
                         text = "Made For You",
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary
+                        color = Color.White
                     )
                     Text(
                         text = "Refresh",
-                        fontSize = 12.sp,
-                        color = YumaColors.PrimaryAccent,
+                        fontSize = 13.sp,
+                        color = Color(0xFF6366F1),
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { vm.refreshDiscover() }
                     )
@@ -448,15 +465,15 @@ private fun YumaHomeContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(130.dp)
                             .glassCard(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = YumaColors.PrimaryAccent)
+                        CircularProgressIndicator(color = Color(0xFF6366F1))
                     }
                 } else {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(discoverTracks) { track ->
                             YumaTrackCardItem(track = track, onClick = { onPlayTrack(track) })
@@ -472,14 +489,14 @@ private fun YumaHomeContent(
                 Column {
                     Text(
                         text = "Popular Podcasts",
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary,
+                        color = Color.White,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(podcastTracks) { track ->
                             YumaTrackCardItem(track = track, onClick = { onPlayTrack(track) })
@@ -496,18 +513,18 @@ private fun YumaQuickPickTile(track: Track, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .glassCard(cornerRadius = 14.dp)
+            .height(60.dp)
+            .glassCard(cornerRadius = 16.dp, borderWidth = 1.dp)
             .clickable(onClick = onClick)
             .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         ArtworkImage(
             artworkUrl = track.artwork,
-            modifier = Modifier.size(44.dp),
-            cornerRadius = 10.dp
+            modifier = Modifier.size(48.dp),
+            cornerRadius = 12.dp
         )
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -516,14 +533,14 @@ private fun YumaQuickPickTile(track: Track, onClick: () -> Unit) {
                 text = track.title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = YumaColors.TextPrimary,
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = track.artist,
                 fontSize = 11.sp,
-                color = YumaColors.TextSecondary,
+                color = Color.White.copy(alpha = 0.6f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -535,47 +552,47 @@ private fun YumaQuickPickTile(track: Track, onClick: () -> Unit) {
 private fun YumaTrackCardItem(track: Track, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(140.dp)
+            .width(150.dp)
             .clickable(onClick = onClick)
     ) {
         Box {
             ArtworkImage(
                 artworkUrl = track.artwork,
                 modifier = Modifier
-                    .size(140.dp)
-                    .glassCard(cornerRadius = 18.dp),
-                cornerRadius = 18.dp
+                    .size(150.dp)
+                    .glassCard(cornerRadius = 24.dp, borderWidth = 1.dp),
+                cornerRadius = 24.dp
             )
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
+                    .padding(10.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(YumaColors.PrimaryAccent),
+                    .background(Color(0xFF6366F1)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = track.title,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color = YumaColors.TextPrimary,
+            color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             text = track.artist,
-            fontSize = 11.sp,
-            color = YumaColors.TextSecondary,
+            fontSize = 12.sp,
+            color = Color.White.copy(alpha = 0.6f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -583,7 +600,7 @@ private fun YumaTrackCardItem(track: Track, onClick: () -> Unit) {
 }
 
 @Composable
-private fun YumaSearchContent(
+private fun YumaSearchScreen(
     vm: MusicViewModel,
     onPlayTrack: (Track) -> Unit
 ) {
@@ -595,20 +612,20 @@ private fun YumaSearchContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // Search Input Bar
+        // Search Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassCard(cornerRadius = 24.dp)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .glassCard(cornerRadius = 28.dp, borderWidth = 1.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Outlined.Search,
                 contentDescription = null,
-                tint = YumaColors.TextSecondary
+                tint = Color.White.copy(alpha = 0.6f)
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             TextField(
                 value = searchInput,
                 onValueChange = {
@@ -618,7 +635,7 @@ private fun YumaSearchContent(
                 placeholder = {
                     Text(
                         "Search tracks, artists, albums...",
-                        color = YumaColors.TextMuted,
+                        color = Color.White.copy(alpha = 0.4f),
                         fontSize = 14.sp
                     )
                 },
@@ -628,20 +645,18 @@ private fun YumaSearchContent(
                     disabledContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = YumaColors.TextPrimary,
-                    unfocusedTextColor = YumaColors.TextPrimary
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
                 ),
                 modifier = Modifier.weight(1f),
                 singleLine = true
             )
             if (searchInput.isNotEmpty()) {
-                IconButton(onClick = {
-                    searchInput = ""
-                }) {
+                IconButton(onClick = { searchInput = "" }) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Clear",
-                        tint = YumaColors.TextSecondary
+                        tint = Color.White.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -656,7 +671,7 @@ private fun YumaSearchContent(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = YumaColors.PrimaryAccent)
+                CircularProgressIndicator(color = Color(0xFF6366F1))
             }
         } else if (state.error != null) {
             Box(
@@ -682,21 +697,21 @@ private fun YumaSearchContent(
                     Icon(
                         imageVector = Icons.Outlined.Search,
                         contentDescription = null,
-                        tint = YumaColors.TextMuted,
+                        tint = Color.White.copy(alpha = 0.3f),
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Search for your favorite songs",
+                        text = "Search across YouTube Music catalog",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = YumaColors.TextSecondary
+                        color = Color.White.copy(alpha = 0.6f)
                     )
                 }
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
                 items(state.tracks) { track ->
@@ -722,17 +737,17 @@ private fun YumaTrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .glassCard(cornerRadius = 16.dp)
+            .glassCard(cornerRadius = 18.dp, borderWidth = 1.dp)
             .clickable(onClick = onPlay)
-            .padding(8.dp),
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         ArtworkImage(
             artworkUrl = track.artwork,
-            modifier = Modifier.size(50.dp),
-            cornerRadius = 12.dp
+            modifier = Modifier.size(52.dp),
+            cornerRadius = 14.dp
         )
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -741,14 +756,14 @@ private fun YumaTrackRow(
                 text = track.title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = YumaColors.TextPrimary,
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = track.artist + if (track.album.isNotBlank()) " • ${track.album}" else "",
                 fontSize = 12.sp,
-                color = YumaColors.TextSecondary,
+                color = Color.White.copy(alpha = 0.6f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -759,17 +774,17 @@ private fun YumaTrackRow(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = YumaColors.TextSecondary
+                    tint = Color.White.copy(alpha = 0.6f)
                 )
             }
 
             DropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
-                modifier = Modifier.background(YumaColors.SurfaceElevated)
+                modifier = Modifier.background(Color(0xFF1C1C1E))
             ) {
                 DropdownMenuItem(
-                    text = { Text("Play Now", color = YumaColors.TextPrimary) },
+                    text = { Text("Play Now", color = Color.White) },
                     onClick = {
                         menuExpanded = false
                         onPlay()
@@ -778,12 +793,12 @@ private fun YumaTrackRow(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = YumaColors.PrimaryAccent
+                            tint = Color(0xFF6366F1)
                         )
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Add to Queue", color = YumaColors.TextPrimary) },
+                    text = { Text("Add to Queue", color = Color.White) },
                     onClick = {
                         menuExpanded = false
                         onEnqueue()
@@ -792,7 +807,7 @@ private fun YumaTrackRow(
                         Icon(
                             imageVector = Icons.Outlined.QueueMusic,
                             contentDescription = null,
-                            tint = YumaColors.TextSecondary
+                            tint = Color.White.copy(alpha = 0.6f)
                         )
                     }
                 )
@@ -802,7 +817,7 @@ private fun YumaTrackRow(
 }
 
 @Composable
-private fun YumaLibraryContent(
+private fun YumaLibraryScreen(
     vm: MusicViewModel,
     onPlayTrack: (Track) -> Unit
 ) {
@@ -815,9 +830,9 @@ private fun YumaLibraryContent(
     ) {
         Text(
             text = "Your Library",
-            fontSize = 22.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = YumaColors.TextPrimary,
+            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
@@ -832,7 +847,7 @@ private fun YumaLibraryContent(
                     Icon(
                         imageVector = Icons.Outlined.LibraryMusic,
                         contentDescription = null,
-                        tint = YumaColors.TextMuted,
+                        tint = Color.White.copy(alpha = 0.3f),
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -840,18 +855,13 @@ private fun YumaLibraryContent(
                         text = "No saved tracks in your library",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = YumaColors.TextSecondary
-                    )
-                    Text(
-                        text = "Like songs in the player to save them here",
-                        fontSize = 12.sp,
-                        color = YumaColors.TextMuted
+                        color = Color.White.copy(alpha = 0.6f)
                     )
                 }
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
                 items(library.saved) { track ->
@@ -867,7 +877,7 @@ private fun YumaLibraryContent(
 }
 
 @Composable
-private fun YumaSettingsContent(
+private fun YumaSettingsScreen(
     vm: MusicViewModel,
     onOpenSleepTimer: () -> Unit
 ) {
@@ -883,53 +893,53 @@ private fun YumaSettingsContent(
     ) {
         Text(
             text = "Settings",
-            fontSize = 22.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = YumaColors.TextPrimary
+            color = Color.White
         )
 
         // Playback Engine Mode
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassCard(cornerRadius = 20.dp)
-                .padding(16.dp)
+                .glassCard(cornerRadius = 24.dp)
+                .padding(18.dp)
         ) {
             Column {
                 Text(
-                    text = "Playback Mode",
+                    text = "Playback Engine",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = YumaColors.TextPrimary
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Choose audio resolution and streaming engine mode",
+                    text = "Select high bitrate resolution & extraction fallback",
                     fontSize = 12.sp,
-                    color = YumaColors.TextSecondary
+                    color = Color.White.copy(alpha = 0.65f)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     PlaybackMode.values().forEach { m ->
                         val isSel = mode == m
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSel) YumaColors.PrimaryAccent else YumaColors.GlassCardBg)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSel) Color(0xFF6366F1) else Color(0x1AFFFFFF))
                                 .clickable { vm.setMode(m) }
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = m.name,
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSel) Color.White else YumaColors.TextSecondary
+                                color = if (isSel) Color.White else Color.White.copy(alpha = 0.65f)
                             )
                         }
                     }
@@ -937,13 +947,13 @@ private fun YumaSettingsContent(
             }
         }
 
-        // Sleep Timer Setting
+        // Sleep Timer
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassCard(cornerRadius = 20.dp)
+                .glassCard(cornerRadius = 24.dp)
                 .clickable(onClick = onOpenSleepTimer)
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -955,41 +965,41 @@ private fun YumaSettingsContent(
                         text = "Sleep Timer",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary
+                        color = Color.White
                     )
                     Text(
                         text = if (sleepTimer != null) "Active: $sleepTimer minutes remaining" else "Off",
                         fontSize = 12.sp,
-                        color = if (sleepTimer != null) YumaColors.PrimaryAccent else YumaColors.TextSecondary
+                        color = if (sleepTimer != null) Color(0xFF6366F1) else Color.White.copy(alpha = 0.65f)
                     )
                 }
                 Icon(
                     imageVector = Icons.Default.Timer,
                     contentDescription = null,
-                    tint = YumaColors.PrimaryAccent
+                    tint = Color(0xFF6366F1)
                 )
             }
         }
 
-        // App Information Card
+        // App Information
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassCard(cornerRadius = 20.dp)
-                .padding(16.dp)
+                .glassCard(cornerRadius = 24.dp)
+                .padding(18.dp)
         ) {
             Column {
                 Text(
-                    text = "Streamfyree Yuma Edition",
+                    text = "YumaPlayer (Streamfyree Hybrid)",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = YumaColors.TextPrimary
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Version 0.3.0 • Chaquopy 16.0.0 • YDS 2.1 Glassmorphism",
+                    text = "Version 0.3.0 • YDS 2.1 Design System • Chaquopy 16.0.0",
                     fontSize = 12.sp,
-                    color = YumaColors.TextSecondary
+                    color = Color.White.copy(alpha = 0.65f)
                 )
             }
         }
@@ -1016,8 +1026,9 @@ private fun YumaMiniPlayer(
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .fillMaxWidth()
             .glassCard(
-                cornerRadius = 20.dp,
-                backgroundColor = YumaColors.GlassBar
+                cornerRadius = 24.dp,
+                borderColor = Color.White.copy(alpha = 0.15f),
+                backgroundColor = Color(0xEE141622)
             )
             .clickable(onClick = onExpand)
     ) {
@@ -1030,26 +1041,26 @@ private fun YumaMiniPlayer(
             ) {
                 ArtworkImage(
                     artworkUrl = track.artwork,
-                    modifier = Modifier.size(46.dp),
-                    cornerRadius = 12.dp
+                    modifier = Modifier.size(48.dp),
+                    cornerRadius = 14.dp
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
                         text = track.title,
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary,
+                        color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = track.artist,
-                        fontSize = 11.sp,
-                        color = YumaColors.TextSecondary,
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.65f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1058,36 +1069,34 @@ private fun YumaMiniPlayer(
                 IconButton(
                     onClick = { vm.togglePlayPause() },
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(YumaColors.PrimaryAccent)
+                        .background(Color(0xFF6366F1))
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = "Play/Pause",
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
-                IconButton(
-                    onClick = { vm.next() }
-                ) {
+                IconButton(onClick = { vm.next() }) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next",
-                        tint = YumaColors.TextPrimary
+                        tint = Color.White
                     )
                 }
             }
 
-            // Bottom Progress Bar Line
+            // Bottom Progress Line
             LinearProgressIndicator(
                 progress = { progressFraction },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp),
-                color = YumaColors.PrimaryAccent,
+                color = Color(0xFF6366F1),
                 trackColor = Color.Transparent
             )
         }
@@ -1095,7 +1104,7 @@ private fun YumaMiniPlayer(
 }
 
 @Composable
-private fun YumaBottomNav(
+private fun YumaFloatingBottomBar(
     selectedTab: Int,
     onSelectTab: (Int) -> Unit
 ) {
@@ -1106,42 +1115,82 @@ private fun YumaBottomNav(
         Triple("Settings", Icons.Outlined.Settings, 3)
     )
 
+    val barHeight = 68.dp
+    val pillWidth = 56.dp
+    val pillHeight = 32.dp
+
     Box(
         modifier = Modifier
-            .padding(bottom = 12.dp, start = 24.dp, end = 24.dp)
+            .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
+            .widthIn(max = 460.dp)
             .fillMaxWidth()
-            .height(60.dp)
+            .height(barHeight)
             .glassCard(
-                cornerRadius = 30.dp,
-                backgroundColor = YumaColors.GlassBar
-            )
+                cornerRadius = 24.dp,
+                borderColor = Color.White.copy(alpha = 0.12f),
+                backgroundColor = Color(0xEE141622)
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items.forEach { (label, icon, tabIndex) ->
-                val isSelected = selectedTab == tabIndex
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable { onSelectTab(tabIndex) }
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = if (isSelected) YumaColors.PrimaryAccent else YumaColors.TextMuted,
-                        modifier = Modifier.size(22.dp)
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val tabWidth = maxWidth / items.size
+            val density = LocalDensity.current
+            val pillOffsetPx = remember(tabWidth, selectedTab) {
+                with(density) { ((tabWidth * selectedTab) + ((tabWidth - pillWidth) / 2)).toPx() }
+            }
+
+            val animatedPillPx by animateFloatAsState(
+                targetValue = pillOffsetPx,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "YumaPillOffset"
+            )
+
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        translationX = animatedPillPx
+                        translationY = 10.dp.toPx()
+                    }
+                    .width(pillWidth)
+                    .height(pillHeight)
+                    .background(
+                        color = Color.White.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    Text(
-                        text = label,
-                        fontSize = 10.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) YumaColors.PrimaryAccent else YumaColors.TextMuted
-                    )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { (label, icon, tabIndex) ->
+                    val isSelected = selectedTab == tabIndex
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .width(tabWidth)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable { onSelectTab(tabIndex) }
+                            .padding(top = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+                        )
+                    }
                 }
             }
         }
@@ -1167,7 +1216,7 @@ private fun YumaFullPlayerSheet(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YumaColors.Background)
+            .background(Color(0xFF090A0F))
     ) {
         // Ambient Blurred Artwork Background
         if (!track.artwork.isNullOrBlank()) {
@@ -1176,8 +1225,8 @@ private fun YumaFullPlayerSheet(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(50.dp)
-                    .alpha(0.35f),
+                    .blur(60.dp)
+                    .alpha(0.4f),
                 contentScale = ContentScale.Crop
             )
         }
@@ -1188,8 +1237,8 @@ private fun YumaFullPlayerSheet(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            YumaColors.Background.copy(alpha = 0.6f),
-                            YumaColors.Background.copy(alpha = 0.95f)
+                            Color(0xFF090A0F).copy(alpha = 0.5f),
+                            Color(0xFF090A0F).copy(alpha = 0.95f)
                         )
                     )
                 )
@@ -1214,23 +1263,23 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Collapse",
-                        tint = YumaColors.TextPrimary,
+                        tint = Color.White,
                         modifier = Modifier.size(32.dp)
                     )
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "PLAYING FROM STREAMFYREE",
+                        text = "PLAYING FROM ALBUM",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.PrimaryAccent,
-                        letterSpacing = 1.sp
+                        color = Color(0xFF6366F1),
+                        letterSpacing = 1.2.sp
                     )
                     Text(
                         text = track.album.ifBlank { "Single" },
-                        fontSize = 12.sp,
-                        color = YumaColors.TextSecondary,
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.7f),
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -1239,17 +1288,16 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Outlined.QueueMusic,
                         contentDescription = "Options",
-                        tint = YumaColors.TextPrimary
+                        tint = Color.White
                     )
                 }
             }
 
-            // Glassmorphic Artwork Card
+            // Player Cover Card
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.85f)
-                    .aspectRatio(1f)
-                    .glassCard(cornerRadius = 28.dp, borderWidth = 1.dp, borderColor = Color.White.copy(alpha = 0.2f)),
+                    .fillMaxWidth(0.88f)
+                    .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
                 ArtworkImage(
@@ -1259,7 +1307,7 @@ private fun YumaFullPlayerSheet(
                 )
             }
 
-            // Title & Artist with Heart Button
+            // Metadata Title & Heart Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1268,9 +1316,9 @@ private fun YumaFullPlayerSheet(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = track.title,
-                        fontSize = 22.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = YumaColors.TextPrimary,
+                        color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1278,7 +1326,7 @@ private fun YumaFullPlayerSheet(
                     Text(
                         text = track.artist,
                         fontSize = 16.sp,
-                        color = YumaColors.TextSecondary,
+                        color = Color.White.copy(alpha = 0.65f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1292,22 +1340,22 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Save",
-                        tint = if (isSaved) YumaColors.PrimaryAccent else YumaColors.TextSecondary,
-                        modifier = Modifier.size(28.dp)
+                        tint = if (isSaved) Color(0xFF6366F1) else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
-            // Seeker Slider & Timers
+            // Seeker Slider
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
                     value = progress.positionMs.toFloat().coerceAtMost(progress.durationMs.toFloat().coerceAtLeast(1f)),
                     onValueChange = { vm.seekTo(it.toLong()) },
                     valueRange = 0f..(progress.durationMs.toFloat().coerceAtLeast(1f)),
                     colors = SliderDefaults.colors(
-                        thumbColor = YumaColors.PrimaryAccent,
-                        activeTrackColor = YumaColors.PrimaryAccent,
-                        inactiveTrackColor = YumaColors.GlassCardBg
+                        thumbColor = Color(0xFF6366F1),
+                        activeTrackColor = Color(0xFF6366F1),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )
 
@@ -1318,17 +1366,17 @@ private fun YumaFullPlayerSheet(
                     Text(
                         text = formatTime(progress.positionMs),
                         fontSize = 12.sp,
-                        color = YumaColors.TextSecondary
+                        color = Color.White.copy(alpha = 0.65f)
                     )
                     Text(
                         text = formatTime(progress.durationMs),
                         fontSize = 12.sp,
-                        color = YumaColors.TextSecondary
+                        color = Color.White.copy(alpha = 0.65f)
                     )
                 }
             }
 
-            // Playback Controls
+            // Transport Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -1338,7 +1386,7 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (shuffle) YumaColors.PrimaryAccent else YumaColors.TextMuted
+                        tint = if (shuffle) Color(0xFF6366F1) else Color.White.copy(alpha = 0.5f)
                     )
                 }
 
@@ -1349,8 +1397,8 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
                         contentDescription = "Previous",
-                        tint = YumaColors.TextPrimary,
-                        modifier = Modifier.size(32.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
@@ -1361,7 +1409,7 @@ private fun YumaFullPlayerSheet(
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
-                                listOf(YumaColors.PrimaryAccent, YumaColors.SecondaryAccent)
+                                listOf(Color(0xFF6366F1), Color(0xFFA855F7))
                             )
                         )
                 ) {
@@ -1380,8 +1428,8 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next",
-                        tint = YumaColors.TextPrimary,
-                        modifier = Modifier.size(32.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
@@ -1392,44 +1440,44 @@ private fun YumaFullPlayerSheet(
                             else -> Icons.Default.Repeat
                         },
                         contentDescription = "Repeat",
-                        tint = if (repeatMode != RepeatMode.OFF) YumaColors.PrimaryAccent else YumaColors.TextMuted
+                        tint = if (repeatMode != RepeatMode.OFF) Color(0xFF6366F1) else Color.White.copy(alpha = 0.5f)
                     )
                 }
             }
 
-            // Bottom Action Row (Lyrics & Queue Sheet Toggles)
+            // Action Capsules
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 Button(
                     onClick = onOpenLyrics,
-                    colors = ButtonDefaults.buttonColors(containerColor = YumaColors.GlassCardBg),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFFFFFF)),
                     shape = RoundedCornerShape(20.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, YumaColors.GlassCardBorder)
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x1FFFFFFF))
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Mic,
                         contentDescription = null,
-                        tint = YumaColors.PrimaryAccent
+                        tint = Color(0xFF6366F1)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Lyrics", color = YumaColors.TextPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Lyrics", color = Color.White)
                 }
 
                 Button(
                     onClick = onOpenQueue,
-                    colors = ButtonDefaults.buttonColors(containerColor = YumaColors.GlassCardBg),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFFFFFF)),
                     shape = RoundedCornerShape(20.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, YumaColors.GlassCardBorder)
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x1FFFFFFF))
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.QueueMusic,
                         contentDescription = null,
-                        tint = YumaColors.PrimaryAccent
+                        tint = Color(0xFF6366F1)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Queue", color = YumaColors.TextPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Queue", color = Color.White)
                 }
             }
         }
@@ -1444,7 +1492,6 @@ private fun YumaLyricsSheet(
     val lyrics by vm.lyrics.collectAsState()
     val lyricsLoading by vm.lyricsLoading.collectAsState()
     val progress by vm.progress.collectAsState()
-    val currentTrack by vm.current.collectAsState()
 
     val activeIndex = remember(lyrics, progress.positionMs) {
         lyrics?.lines?.let { LyricsManager.getActiveLineIndex(it, progress.positionMs) } ?: -1
@@ -1461,9 +1508,9 @@ private fun YumaLyricsSheet(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YumaColors.Background.copy(alpha = 0.95f))
+            .background(Color(0xFF090A0F).copy(alpha = 0.96f))
             .statusBarsPadding()
-            .padding(16.dp)
+            .padding(20.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -1473,16 +1520,16 @@ private fun YumaLyricsSheet(
             ) {
                 Text(
                     text = "Synced Lyrics",
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = YumaColors.TextPrimary
+                    color = Color.White
                 )
 
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = YumaColors.TextPrimary
+                        tint = Color.White
                     )
                 }
             }
@@ -1494,7 +1541,7 @@ private fun YumaLyricsSheet(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = YumaColors.PrimaryAccent)
+                    CircularProgressIndicator(color = Color(0xFF6366F1))
                 }
             } else if (lyrics == null || lyrics?.lines.isNullOrEmpty()) {
                 Box(
@@ -1505,30 +1552,30 @@ private fun YumaLyricsSheet(
                         Icon(
                             imageVector = Icons.Outlined.Mic,
                             contentDescription = null,
-                            tint = YumaColors.TextMuted,
+                            tint = Color.White.copy(alpha = 0.3f),
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = "No lyrics found for this track",
                             fontSize = 16.sp,
-                            color = YumaColors.TextSecondary
+                            color = Color.White.copy(alpha = 0.6f)
                         )
                     }
                 }
             } else {
                 LazyColumn(
                     state = listState,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(lyrics!!.lines) { index, line ->
                         val isActive = index == activeIndex
                         Text(
                             text = line.text,
-                            fontSize = if (isActive) 24.sp else 18.sp,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isActive) YumaColors.PrimaryAccent else YumaColors.TextSecondary.copy(alpha = 0.6f),
+                            fontSize = if (isActive) 26.sp else 18.sp,
+                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Normal,
+                            color = if (isActive) Color(0xFF6366F1) else Color.White.copy(alpha = 0.4f),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -1555,9 +1602,9 @@ private fun YumaQueueSheet(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YumaColors.Background.copy(alpha = 0.95f))
+            .background(Color(0xFF090A0F).copy(alpha = 0.96f))
             .statusBarsPadding()
-            .padding(16.dp)
+            .padding(20.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -1566,21 +1613,21 @@ private fun YumaQueueSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Play Queue (${queue.size})",
-                    fontSize = 20.sp,
+                    text = "Queue (${queue.size})",
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = YumaColors.TextPrimary
+                    color = Color.White
                 )
 
                 Row {
                     TextButton(onClick = { vm.clearQueue() }) {
-                        Text("Clear", color = Color.Red)
+                        Text("Clear All", color = Color.Red)
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = YumaColors.TextPrimary
+                            tint = Color.White
                         )
                     }
                 }
@@ -1595,13 +1642,13 @@ private fun YumaQueueSheet(
                 ) {
                     Text(
                         text = "Queue is empty",
-                        color = YumaColors.TextSecondary,
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 16.sp
                     )
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(queue) { track ->
@@ -1610,32 +1657,32 @@ private fun YumaQueueSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .glassCard(
-                                    cornerRadius = 14.dp,
-                                    backgroundColor = if (isPlaying) YumaColors.PrimaryAccent.copy(alpha = 0.2f) else YumaColors.GlassCardBg
+                                    cornerRadius = 16.dp,
+                                    backgroundColor = if (isPlaying) Color(0xFF6366F1).copy(alpha = 0.25f) else Color(0x1AFFFFFF)
                                 )
                                 .clickable { vm.play(track) }
-                                .padding(8.dp),
+                                .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ArtworkImage(
                                 artworkUrl = track.artwork,
-                                modifier = Modifier.size(44.dp),
-                                cornerRadius = 10.dp
+                                modifier = Modifier.size(46.dp),
+                                cornerRadius = 12.dp
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = track.title,
-                                    fontSize = 13.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isPlaying) YumaColors.PrimaryAccent else YumaColors.TextPrimary,
+                                    color = if (isPlaying) Color(0xFF6366F1) else Color.White,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = track.artist,
-                                    fontSize = 11.sp,
-                                    color = YumaColors.TextSecondary,
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.6f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -1644,7 +1691,7 @@ private fun YumaQueueSheet(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Remove",
-                                    tint = YumaColors.TextMuted
+                                    tint = Color.White.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -1666,17 +1713,17 @@ private fun YumaSleepTimerDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassCard(cornerRadius = 24.dp)
-                .padding(20.dp)
+                .glassCard(cornerRadius = 28.dp)
+                .padding(22.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Sleep Timer",
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = YumaColors.TextPrimary
+                    color = Color.White
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 options.forEach { mins ->
                     Button(
@@ -1684,13 +1731,13 @@ private fun YumaSleepTimerDialog(
                             vm.setSleepTimer(mins)
                             onDismiss()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = YumaColors.GlassCardBg),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFFFFFF)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("$mins minutes", color = YumaColors.TextPrimary)
+                        Text("$mins minutes", color = Color.White, fontSize = 15.sp)
                     }
                 }
 
@@ -1700,7 +1747,7 @@ private fun YumaSleepTimerDialog(
                     vm.setSleepTimer(null)
                     onDismiss()
                 }) {
-                    Text("Turn Off Sleep Timer", color = Color.Red)
+                    Text("Turn Off Sleep Timer", color = Color.Red, fontSize = 14.sp)
                 }
             }
         }
