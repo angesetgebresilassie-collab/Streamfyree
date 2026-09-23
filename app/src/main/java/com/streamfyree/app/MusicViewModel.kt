@@ -38,7 +38,6 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val savedKey = stringSetPreferencesKey("saved_tracks")
     private val queueKey = stringPreferencesKey("queue_json")
     private val historyKey = stringPreferencesKey("history_json")
-    private val playlistsKey = stringPreferencesKey("playlists_json")
 
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state
@@ -54,8 +53,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     val history: StateFlow<List<Track>> = _history
     private val _discoverTracks = MutableStateFlow<List<Track>>(emptyList())
     val discoverTracks: StateFlow<List<Track>> = _discoverTracks
-    private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
-    val playlists: StateFlow<List<Playlist>> = _playlists
+    private val _podcastTracks = MutableStateFlow<List<Track>>(emptyList())
+    val podcastTracks: StateFlow<List<Track>> = _podcastTracks
+    private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
+    val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
     private val _progress = MutableStateFlow(PlaybackProgress())
@@ -72,9 +74,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _library.value = LibraryState(prefs[savedKey].orEmpty().mapNotNull(::decodeTrack))
             _queue.value = decodeList(prefs[queueKey])
             _history.value = decodeList(prefs[historyKey]).take(20)
-            _playlists.value = decodePlaylists(prefs[playlistsKey])
         }
         refreshDiscover()
+        loadPodcasts()
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(app, token).buildAsync()
         controllerFuture.addListener({
@@ -121,6 +123,47 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadPodcasts(query: String = "popular podcasts") {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { itunes.searchPodcasts(query) }
+                .onSuccess { _podcastTracks.value = it.distinctBy { p -> p.id } }
+        }
+    }
+
+    fun playMix(query: String) {
+        _state.value = _state.value.copy(loading = true, error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { itunes.search(query) }
+                .onSuccess { tracks ->
+                    if (tracks.isNotEmpty()) {
+                        _queue.value = tracks
+                        persistQueue(tracks)
+                        withContext(Dispatchers.Main) { play(tracks.first()) }
+                    } else {
+                        _state.value = _state.value.copy(loading = false, error = "No mix tracks found for '$query'")
+                    }
+                }
+                .onFailure {
+                    _state.value = _state.value.copy(loading = false, error = "Failed to load mix")
+                }
+        }
+    }
+
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        _sleepTimerMinutes.value = minutes
+        if (minutes == null || minutes <= 0) return
+
+        sleepTimerJob = viewModelScope.launch {
+            delay(minutes * 60 * 1000L)
+            withContext(Dispatchers.Main.immediate) {
+                controller?.pause()
+                _sleepTimerMinutes.value = null
+                DebugLogger.info("SLEEP_TIMER", "Sleep timer finished; playback paused.")
+            }
+        }
+    }
+
     fun search(query: String) {
         if (query.isBlank()) return
         _state.value = _state.value.copy(query = query, loading = true, error = null)
@@ -140,6 +183,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resolveAndPlay(track: Track, native: Boolean) {
+        // Show the Now Playing screen immediately with what we already know
+        // (title/artist/artwork from search/history/discover) instead of waiting
+        // for the network resolve to finish. The UI listens on `current`, so
+        // setting it up front is what makes the player open instantly on tap.
         _current.value = track
         DebugLogger.info("RESOLVE", "Starting playback for '${track.title}' — ${track.artist}")
         _state.value = _state.value.copy(loading = true, error = null)
@@ -212,26 +259,12 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                val artworkBytes = runCatching {
-                    resolved.artwork?.let { urlStr ->
-                        val req = okhttp3.Request.Builder().url(urlStr).build()
-                        okhttp3.OkHttpClient().newCall(req).execute().use { resp ->
-                            if (resp.isSuccessful) resp.body?.bytes() else null
-                        }
-                    }
-                }.getOrNull()
-
-                val metadataBuilder = MediaMetadata.Builder()
+                val metadata = MediaMetadata.Builder()
                     .setTitle(resolved.title)
                     .setArtist(resolved.artist)
                     .setAlbumTitle(resolved.album)
                     .setArtworkUri(resolved.artwork?.let { Uri.parse(it) })
-
-                if (artworkBytes != null && artworkBytes.isNotEmpty()) {
-                    metadataBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                }
-
-                val metadata = metadataBuilder.build()
+                    .build()
 
                 val mediaItem = MediaItem.Builder()
                     .setMediaId(resolved.id)
@@ -246,6 +279,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
+                // MediaController is a Player implementation and must be accessed
+                // from its application looper. The resolver runs on Dispatchers.IO,
+                // so marshal every controller call back to the main looper.
                 DebugLogger.info("PLAYER", "Preparing resolved stream; URL host=${runCatching { Uri.parse(url).host }.getOrNull() ?: "unknown"}")
                 withContext(Dispatchers.Main.immediate) {
                     c.stop()
@@ -262,66 +298,6 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 e.printStackTrace()
             }
         }
-    }
-
-    fun createPlaylist(title: String) {
-        if (title.isBlank()) return
-        val newPl = Playlist(
-            id = "pl_" + System.currentTimeMillis(),
-            title = title,
-            subtitle = "0 tracks",
-            artwork = null,
-            tracks = emptyList()
-        )
-        val updated = _playlists.value + newPl
-        _playlists.value = updated
-        persistPlaylists(updated)
-    }
-
-    fun deletePlaylist(playlistId: String) {
-        val updated = _playlists.value.filterNot { it.id == playlistId }
-        _playlists.value = updated
-        persistPlaylists(updated)
-    }
-
-    fun addTrackToPlaylist(playlistId: String, track: Track) {
-        val updated = _playlists.value.map { pl ->
-            if (pl.id == playlistId) {
-                if (pl.tracks.any { it.id == track.id }) pl
-                else {
-                    val tracks = pl.tracks + track
-                    pl.copy(
-                        tracks = tracks,
-                        subtitle = "${tracks.size} tracks",
-                        artwork = pl.artwork ?: track.artwork
-                    )
-                }
-            } else pl
-        }
-        _playlists.value = updated
-        persistPlaylists(updated)
-    }
-
-    fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
-        val updated = _playlists.value.map { pl ->
-            if (pl.id == playlistId) {
-                val tracks = pl.tracks.filterNot { it.id == trackId }
-                pl.copy(
-                    tracks = tracks,
-                    subtitle = "${tracks.size} tracks",
-                    artwork = if (tracks.isEmpty()) null else (pl.artwork ?: tracks.firstOrNull()?.artwork)
-                )
-            } else pl
-        }
-        _playlists.value = updated
-        persistPlaylists(updated)
-    }
-
-    fun playPlaylist(playlist: Playlist) {
-        if (playlist.tracks.isEmpty()) return
-        _queue.value = playlist.tracks
-        persistQueue(_queue.value)
-        play(playlist.tracks.first())
     }
 
     fun enqueue(track: Track) {
@@ -417,46 +393,12 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         _history.value = (listOf(track) + _history.value.filterNot { it.id == track.id }).take(20)
         persistQueue(_history.value, historyKey)
     }
-
     private fun persistLibrary(tracks: List<Track>) = viewModelScope.launch {
         getApplication<Application>().streamfyreeDataStore.edit { it[savedKey] = tracks.map(::encodeTrack).toSet() }
     }
     private fun persistQueue(tracks: List<Track>, key: androidx.datastore.preferences.core.Preferences.Key<String> = queueKey) = viewModelScope.launch {
         getApplication<Application>().streamfyreeDataStore.edit { it[key] = encodeList(tracks) }
     }
-    private fun persistPlaylists(playlists: List<Playlist>) = viewModelScope.launch {
-        getApplication<Application>().streamfyreeDataStore.edit { it[playlistsKey] = encodePlaylists(playlists) }
-    }
-
-    private fun encodePlaylists(playlists: List<Playlist>): String = JSONArray().apply {
-        playlists.forEach { pl ->
-            put(JSONObject().apply {
-                put("id", pl.id)
-                put("title", pl.title)
-                put("subtitle", pl.subtitle)
-                put("artwork", pl.artwork ?: JSONObject.NULL)
-                put("tracks", JSONArray().apply { pl.tracks.forEach { put(encodeTrack(it)) } })
-            })
-        }
-    }.toString()
-
-    private fun decodePlaylists(raw: String?): List<Playlist> = runCatching {
-        if (raw.isNullOrBlank()) return emptyList()
-        val arr = JSONArray(raw)
-        List(arr.length()) { i ->
-            val o = arr.getJSONObject(i)
-            val tArr = o.optJSONArray("tracks") ?: JSONArray()
-            val tracks = List(tArr.length()) { j -> decodeTrack(tArr.getString(j)) }.filterNotNull()
-            Playlist(
-                id = o.getString("id"),
-                title = o.getString("title"),
-                subtitle = "${tracks.size} tracks",
-                artwork = o.optString("artwork").ifBlank { tracks.firstOrNull()?.artwork },
-                tracks = tracks
-            )
-        }
-    }.getOrDefault(emptyList())
-
     private fun encodeList(tracks: List<Track>): String = JSONArray().apply { tracks.forEach { put(encodeTrack(it)) } }.toString()
     private fun decodeList(raw: String?): List<Track> = runCatching {
         if (raw.isNullOrBlank()) return emptyList()
