@@ -1,13 +1,11 @@
 package com.streamfyree.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Close
@@ -30,33 +28,26 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
+fun DebugLogOverlay(
+    logs: List<DebugLog>,
+    onDismiss: () -> Unit
+) {
+    DebugLogDialog(
+        logs = logs,
+        onDismiss = onDismiss,
+        onClear = { DebugLogger.clear() }
+    )
+}
+
+@Composable
 fun DebugLogOverlay(vm: MusicViewModel) {
     val logs by DebugLogger.logs.collectAsState()
-    var open by remember { mutableStateOf(false) }
+    val isVisible by vm.isDebugOverlayVisible.collectAsState()
 
-    Box(Modifier.fillMaxSize()) {
-        if (logs.isNotEmpty()) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .size(46.dp)
-                    .clickable { open = true },
-                shape = RoundedCornerShape(23.dp),
-                color = Color(0xFF352025),
-                contentColor = Color.White
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.BugReport, contentDescription = "Debug logs")
-                }
-            }
-        }
-    }
-
-    if (open) {
+    if (isVisible) {
         DebugLogDialog(
             logs = logs,
-            onDismiss = { open = false },
+            onDismiss = { vm.onToggleDebugOverlay() },
             onClear = { DebugLogger.clear() }
         )
     }
