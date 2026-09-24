@@ -11,7 +11,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -33,8 +32,8 @@ val YumaDarkPalette = YumaColorScheme(
     cardBackgroundOpaque = Color(0xFF1C1C1E),
     textPrimary = Color(0xFFF8FAFC),
     textSecondary = Color(0xA6F8FAFC),
-    primaryAccent = Color(0xFF6366F1),   // Yuma Indigo
-    secondaryAccent = Color(0xFFA855F7) // Yuma Purple
+    primaryAccent = Color(0xFF1DB954),   // Spotify/Yuma Green Accent
+    secondaryAccent = Color(0xFF10B981) // Emerald Green Accent
 )
 
 val LocalYumaColors = staticCompositionLocalOf { YumaDarkPalette }

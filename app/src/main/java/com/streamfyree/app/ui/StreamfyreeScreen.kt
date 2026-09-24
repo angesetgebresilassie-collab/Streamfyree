@@ -6,7 +6,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -54,6 +53,9 @@ import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import com.streamfyree.app.*
 import kotlinx.coroutines.delay
+
+private val GreenPrimary = Color(0xFF1DB954)
+private val GreenSecondary = Color(0xFF10B981)
 
 @Composable
 fun StreamfyreeScreen(vm: MusicViewModel) {
@@ -179,8 +181,8 @@ private fun ArtworkImage(
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        Color(0xFF6366F1).copy(alpha = 0.35f),
-                        Color(0xFFA855F7).copy(alpha = 0.25f),
+                        GreenPrimary.copy(alpha = 0.35f),
+                        GreenSecondary.copy(alpha = 0.25f),
                         Color(0xFF1C1C1E)
                     )
                 )
@@ -230,7 +232,7 @@ private fun YumaHeader(
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF6366F1), Color(0xFFA855F7))
+                            listOf(GreenPrimary, GreenSecondary)
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -244,17 +246,10 @@ private fun YumaHeader(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "Yuma",
+                text = "Streamfyre",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Player",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.6f)
             )
         }
 
@@ -310,13 +305,13 @@ private fun YumaHomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(190.dp)
+                    .height(180.dp)
                     .glassCard(cornerRadius = 28.dp, borderWidth = 1.dp)
                     .background(
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0xFF6366F1).copy(alpha = 0.45f),
-                                Color(0xFFA855F7).copy(alpha = 0.25f),
+                                GreenPrimary.copy(alpha = 0.45f),
+                                GreenSecondary.copy(alpha = 0.25f),
                                 Color.Transparent
                             )
                         )
@@ -331,22 +326,22 @@ private fun YumaHomeScreen(
                 ) {
                     Column {
                         Text(
-                            text = "SPOTIFY & YTM HYBRID",
+                            text = "DAILY MIX",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6366F1),
+                            color = GreenPrimary,
                             letterSpacing = 1.2.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Your Daily Discovery",
+                            text = "Your Music Discovery",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Audiophile quality stream & recommendations",
+                            text = "Personalized recommendations for you",
                             fontSize = 13.sp,
                             color = Color.White.copy(alpha = 0.65f)
                         )
@@ -354,7 +349,7 @@ private fun YumaHomeScreen(
 
                     Button(
                         onClick = { vm.playMix("pop hits") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                     ) {
@@ -378,7 +373,7 @@ private fun YumaHomeScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSelected) Color(0xFF6366F1) else Color(0x1AFFFFFF))
+                            .background(if (isSelected) GreenPrimary else Color(0x1AFFFFFF))
                             .border(
                                 1.dp,
                                 if (isSelected) Color.Transparent else Color(0x1FFFFFFF),
@@ -455,7 +450,7 @@ private fun YumaHomeScreen(
                     Text(
                         text = "Refresh",
                         fontSize = 13.sp,
-                        color = Color(0xFF6366F1),
+                        color = GreenPrimary,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { vm.refreshDiscover() }
                     )
@@ -469,7 +464,7 @@ private fun YumaHomeScreen(
                             .glassCard(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Color(0xFF6366F1))
+                        CircularProgressIndicator(color = GreenPrimary)
                     }
                 } else {
                     LazyRow(
@@ -569,7 +564,7 @@ private fun YumaTrackCardItem(track: Track, onClick: () -> Unit) {
                     .padding(10.dp)
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF6366F1)),
+                    .background(GreenPrimary),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -671,7 +666,7 @@ private fun YumaSearchScreen(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF6366F1))
+                CircularProgressIndicator(color = GreenPrimary)
             }
         } else if (state.error != null) {
             Box(
@@ -702,7 +697,7 @@ private fun YumaSearchScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Search across YouTube Music catalog",
+                        text = "Search across music catalog",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White.copy(alpha = 0.6f)
@@ -793,7 +788,7 @@ private fun YumaTrackRow(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = Color(0xFF6366F1)
+                            tint = GreenPrimary
                         )
                     }
                 )
@@ -930,7 +925,7 @@ private fun YumaSettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSel) Color(0xFF6366F1) else Color(0x1AFFFFFF))
+                                .background(if (isSel) GreenPrimary else Color(0x1AFFFFFF))
                                 .clickable { vm.setMode(m) }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
@@ -970,13 +965,13 @@ private fun YumaSettingsScreen(
                     Text(
                         text = if (sleepTimer != null) "Active: $sleepTimer minutes remaining" else "Off",
                         fontSize = 12.sp,
-                        color = if (sleepTimer != null) Color(0xFF6366F1) else Color.White.copy(alpha = 0.65f)
+                        color = if (sleepTimer != null) GreenPrimary else Color.White.copy(alpha = 0.65f)
                     )
                 }
                 Icon(
                     imageVector = Icons.Default.Timer,
                     contentDescription = null,
-                    tint = Color(0xFF6366F1)
+                    tint = GreenPrimary
                 )
             }
         }
@@ -990,7 +985,7 @@ private fun YumaSettingsScreen(
         ) {
             Column {
                 Text(
-                    text = "YumaPlayer (Streamfyree Hybrid)",
+                    text = "Streamfyre",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -1071,7 +1066,7 @@ private fun YumaMiniPlayer(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF6366F1))
+                        .background(GreenPrimary)
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -1096,7 +1091,7 @@ private fun YumaMiniPlayer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp),
-                color = Color(0xFF6366F1),
+                color = GreenPrimary,
                 trackColor = Color.Transparent
             )
         }
@@ -1273,7 +1268,7 @@ private fun YumaFullPlayerSheet(
                         text = "PLAYING FROM ALBUM",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6366F1),
+                        color = GreenPrimary,
                         letterSpacing = 1.2.sp
                     )
                     Text(
@@ -1340,7 +1335,7 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Save",
-                        tint = if (isSaved) Color(0xFF6366F1) else Color.White.copy(alpha = 0.7f),
+                        tint = if (isSaved) GreenPrimary else Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -1353,8 +1348,8 @@ private fun YumaFullPlayerSheet(
                     onValueChange = { vm.seekTo(it.toLong()) },
                     valueRange = 0f..(progress.durationMs.toFloat().coerceAtLeast(1f)),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF6366F1),
-                        activeTrackColor = Color(0xFF6366F1),
+                        thumbColor = GreenPrimary,
+                        activeTrackColor = GreenPrimary,
                         inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )
@@ -1386,7 +1381,7 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (shuffle) Color(0xFF6366F1) else Color.White.copy(alpha = 0.5f)
+                        tint = if (shuffle) GreenPrimary else Color.White.copy(alpha = 0.5f)
                     )
                 }
 
@@ -1409,7 +1404,7 @@ private fun YumaFullPlayerSheet(
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(0xFF6366F1), Color(0xFFA855F7))
+                                listOf(GreenPrimary, GreenSecondary)
                             )
                         )
                 ) {
@@ -1440,7 +1435,7 @@ private fun YumaFullPlayerSheet(
                             else -> Icons.Default.Repeat
                         },
                         contentDescription = "Repeat",
-                        tint = if (repeatMode != RepeatMode.OFF) Color(0xFF6366F1) else Color.White.copy(alpha = 0.5f)
+                        tint = if (repeatMode != RepeatMode.OFF) GreenPrimary else Color.White.copy(alpha = 0.5f)
                     )
                 }
             }
@@ -1459,7 +1454,7 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Outlined.Mic,
                         contentDescription = null,
-                        tint = Color(0xFF6366F1)
+                        tint = GreenPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Lyrics", color = Color.White)
@@ -1474,7 +1469,7 @@ private fun YumaFullPlayerSheet(
                     Icon(
                         imageVector = Icons.Outlined.QueueMusic,
                         contentDescription = null,
-                        tint = Color(0xFF6366F1)
+                        tint = GreenPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Queue", color = Color.White)
@@ -1541,7 +1536,7 @@ private fun YumaLyricsSheet(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFF6366F1))
+                    CircularProgressIndicator(color = GreenPrimary)
                 }
             } else if (lyrics == null || lyrics?.lines.isNullOrEmpty()) {
                 Box(
@@ -1575,7 +1570,7 @@ private fun YumaLyricsSheet(
                             text = line.text,
                             fontSize = if (isActive) 26.sp else 18.sp,
                             fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Normal,
-                            color = if (isActive) Color(0xFF6366F1) else Color.White.copy(alpha = 0.4f),
+                            color = if (isActive) GreenPrimary else Color.White.copy(alpha = 0.4f),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -1658,7 +1653,7 @@ private fun YumaQueueSheet(
                                 .fillMaxWidth()
                                 .glassCard(
                                     cornerRadius = 16.dp,
-                                    backgroundColor = if (isPlaying) Color(0xFF6366F1).copy(alpha = 0.25f) else Color(0x1AFFFFFF)
+                                    backgroundColor = if (isPlaying) GreenPrimary.copy(alpha = 0.25f) else Color(0x1AFFFFFF)
                                 )
                                 .clickable { vm.play(track) }
                                 .padding(10.dp),
@@ -1675,7 +1670,7 @@ private fun YumaQueueSheet(
                                     text = track.title,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isPlaying) Color(0xFF6366F1) else Color.White,
+                                    color = if (isPlaying) GreenPrimary else Color.White,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
