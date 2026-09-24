@@ -1,5 +1,29 @@
 package com.streamfyree.app
 
+data class MusicTrack(
+    val id: String,
+    val title: String,
+    val artist: String? = null,
+    val album: String? = null,
+    val artworkUrl: String? = null,
+    val durationMs: Long = 0L,
+    val youtubeUrl: String? = null,
+    val streamUrl: String? = null,
+    val lyricVideo: Boolean = false
+) {
+    fun toTrack(): Track = Track(
+        id = id,
+        title = title,
+        artist = artist ?: "",
+        album = album ?: "",
+        artwork = artworkUrl,
+        durationMs = durationMs,
+        youtubeUrl = youtubeUrl,
+        streamUrl = streamUrl,
+        lyricVideo = lyricVideo
+    )
+}
+
 data class Track(
     val id: String,
     val title: String,
@@ -10,7 +34,19 @@ data class Track(
     val youtubeUrl: String? = null,
     val streamUrl: String? = null,
     val lyricVideo: Boolean = false
-)
+) {
+    fun toMusicTrack(): MusicTrack = MusicTrack(
+        id = id,
+        title = title,
+        artist = artist.ifBlank { null },
+        album = album.ifBlank { null },
+        artworkUrl = artwork,
+        durationMs = durationMs,
+        youtubeUrl = youtubeUrl,
+        streamUrl = streamUrl,
+        lyricVideo = lyricVideo
+    )
+}
 
 enum class PlaybackMode { AUTO, NATIVE, ONLINE }
 

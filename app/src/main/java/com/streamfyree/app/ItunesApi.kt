@@ -32,10 +32,12 @@ class ItunesApi {
             val item = array.getJSONObject(index)
             val title = item.optString("trackName").ifBlank { item.optString("collectionName") }
             val artist = item.optString("artistName")
-            val art = item.optString("artworkUrl600")
-                .ifBlank { item.optString("artworkUrl100") }
-                .replace("100x100", "600x600")
-                .ifBlank { null }
+            val rawArt = item.optString("artworkUrl100")
+            val art = if (rawArt.isNotBlank()) {
+                rawArt.replace("100x100bb", "600x600bb").replace("100x100", "600x600")
+            } else {
+                item.optString("artworkUrl600").ifBlank { null }
+            }
             val podcastId = item.optLong("trackId").takeIf { it != 0L } ?: item.optLong("collectionId")
             Track(
                 id = (if (isPodcast) "podcast:" else "itunes:") + podcastId,
