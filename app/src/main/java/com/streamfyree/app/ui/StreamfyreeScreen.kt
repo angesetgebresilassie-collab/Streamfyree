@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -42,7 +43,7 @@ import com.streamfyree.app.MusicTrack
 import com.streamfyree.app.MusicViewModel
 import java.util.Locale
 
-// SpotPlayer Color Palette
+// Yuma Design System (YDS 2.1) Color Palette
 private val SpotGreen = Color(0xFF1DB954)
 private val SpotGreenBright = Color(0xFF1ED760)
 private val SpotDarkBg = Color(0xFF0F0F12)
@@ -83,6 +84,11 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
     val isDebugOverlayVisible by viewModel.isDebugOverlayVisible.collectAsState()
     val logs by viewModel.logs.collectAsState()
 
+    val accentColor = rememberArtworkDominantColor(
+        artworkUrl = currentTrack?.artworkUrl,
+        defaultColor = SpotGreen
+    )
+
     var activeTab by remember { mutableStateOf(ScreenTab.SEARCH) }
     var isExpandedPlayerVisible by remember { mutableStateOf(false) }
 
@@ -91,7 +97,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
         color = SpotDarkBg
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Ambient Backdrop Glow based on active track artwork
+            // YDS 2.1 Ambient Backdrop Glow based on active track artwork
             currentTrack?.artworkUrl?.let { artUrl ->
                 AsyncImage(
                     model = artUrl,
@@ -104,7 +110,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                 )
             }
 
-            // Dark tint overlay over ambient blur
+            // Glassmorphism Dark tint overlay over ambient blur
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -119,9 +125,10 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
             )
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // SpotPlayer Top Navigation Header
+                // YDS Top Header Bar
                 SpotTopHeader(
                     activeTab = activeTab,
+                    accentColor = accentColor,
                     onTabSelected = { activeTab = it },
                     onToggleDebug = { viewModel.onToggleDebugOverlay() }
                 )
@@ -141,6 +148,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                             searchResults = searchResults,
                             currentTrack = currentTrack,
                             isPlaying = isPlaying,
+                            accentColor = accentColor,
                             onTrackSelect = { track ->
                                 viewModel.onTrackSelect(track)
                             }
@@ -154,6 +162,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                             playbackSpeed = playbackSpeed,
                             repeatMode = repeatMode,
                             shuffleMode = shuffleMode,
+                            accentColor = accentColor,
                             onPlayPauseToggle = { viewModel.onPlayPauseToggle() },
                             onSeekTo = { viewModel.onSeekTo(it) },
                             onSkipToNext = { viewModel.onSkipToNext() },
@@ -170,11 +179,13 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                             isLyricsLoading = isLyricsLoading,
                             currentLyricIndex = currentLyricIndex,
                             positionMs = positionMs,
+                            accentColor = accentColor,
                             onSeekTo = { viewModel.onSeekTo(it) }
                         )
                         ScreenTab.QUEUE -> SpotQueueTab(
                             queue = queue,
                             currentIndex = currentTrackIndex,
+                            accentColor = accentColor,
                             onSelectTrack = { index ->
                                 viewModel.onSelectQueueTrack(index)
                             }
@@ -182,7 +193,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                     }
                 }
 
-                // Persistent SpotPlayer Floating Mini Player
+                // Persistent YDS 2.1 Floating Mini Player
                 if (currentTrack != null && activeTab != ScreenTab.PLAYER && !isExpandedPlayerVisible) {
                     SpotMiniPlayer(
                         track = currentTrack!!,
@@ -190,6 +201,7 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
                         positionMs = positionMs,
                         durationMs = durationMs,
                         isBuffering = isBuffering,
+                        accentColor = accentColor,
                         onPlayPauseToggle = { viewModel.onPlayPauseToggle() },
                         onSkipNext = { viewModel.onSkipToNext() },
                         onClick = { activeTab = ScreenTab.PLAYER }
@@ -221,10 +233,11 @@ fun StreamfyreeScreen(viewModel: MusicViewModel) {
     }
 }
 
-// SpotPlayer Header Bar
+// SpotPlayer / Yuma Header Bar
 @Composable
 private fun SpotTopHeader(
     activeTab: ScreenTab,
+    accentColor: Color,
     onTabSelected: (ScreenTab) -> Unit,
     onToggleDebug: () -> Unit
 ) {
@@ -244,18 +257,18 @@ private fun SpotTopHeader(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(SpotGreen),
+                    .background(accentColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = "SpotPlayer Logo",
+                    contentDescription = "Yuma Logo",
                     tint = Color.Black,
                     modifier = Modifier.size(22.dp)
                 )
             }
             Text(
-                text = "SpotPlayer",
+                text = "YumaPlayer",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp
@@ -272,24 +285,28 @@ private fun SpotTopHeader(
                 icon = Icons.Rounded.Search,
                 label = "Search",
                 isSelected = activeTab == ScreenTab.SEARCH,
+                accentColor = accentColor,
                 onClick = { onTabSelected(ScreenTab.SEARCH) }
             )
             SpotHeaderTabButton(
                 icon = Icons.Rounded.PlayCircle,
                 label = "Player",
                 isSelected = activeTab == ScreenTab.PLAYER,
+                accentColor = accentColor,
                 onClick = { onTabSelected(ScreenTab.PLAYER) }
             )
             SpotHeaderTabButton(
                 icon = Icons.Rounded.Subtitles,
                 label = "Lyrics",
                 isSelected = activeTab == ScreenTab.LYRICS,
+                accentColor = accentColor,
                 onClick = { onTabSelected(ScreenTab.LYRICS) }
             )
             SpotHeaderTabButton(
                 icon = Icons.Rounded.QueueMusic,
                 label = "Queue",
                 isSelected = activeTab == ScreenTab.QUEUE,
+                accentColor = accentColor,
                 onClick = { onTabSelected(ScreenTab.QUEUE) }
             )
             IconButton(
@@ -312,9 +329,10 @@ private fun SpotHeaderTabButton(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
-    val bg = if (isSelected) SpotGreen else Color.Transparent
+    val bg = if (isSelected) accentColor else Color.Transparent
     val contentColor = if (isSelected) Color.Black else SpotTextSecondary
 
     Box(
@@ -346,7 +364,7 @@ private fun SpotHeaderTabButton(
     }
 }
 
-// Search Tab Component
+// Search Tab Component with Quick Picks Shelf
 @Composable
 private fun SpotSearchTab(
     searchQuery: String,
@@ -356,9 +374,13 @@ private fun SpotSearchTab(
     searchResults: List<MusicTrack>,
     currentTrack: MusicTrack?,
     isPlaying: Boolean,
+    accentColor: Color,
     onTrackSelect: (MusicTrack) -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
+    val quickPicks = remember {
+        listOf("Top Hits", "Lofi Chill", "Anime Openings", "Afrobeats", "Hip-Hop Classics", "Acoustic Pop")
+    }
 
     Column(
         modifier = Modifier
@@ -375,7 +397,7 @@ private fun SpotSearchTab(
                 .shadow(8.dp, RoundedCornerShape(28.dp)),
             placeholder = {
                 Text(
-                    text = "What do you want to listen to?",
+                    text = "Search songs, artists, or albums",
                     color = SpotTextSecondary
                 )
             },
@@ -383,7 +405,7 @@ private fun SpotSearchTab(
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = "Search",
-                    tint = SpotGreen
+                    tint = accentColor
                 )
             },
             trailingIcon = {
@@ -403,7 +425,7 @@ private fun SpotSearchTab(
                 focusedContainerColor = SpotSurface,
                 unfocusedContainerColor = SpotSurface,
                 disabledContainerColor = SpotSurface,
-                focusedIndicatorColor = SpotGreen,
+                focusedIndicatorColor = accentColor,
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedTextColor = SpotTextPrimary,
                 unfocusedTextColor = SpotTextPrimary
@@ -415,6 +437,30 @@ private fun SpotSearchTab(
             })
         )
 
+        // Quick Picks Chips Shelf
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 6.dp)
+        ) {
+            items(quickPicks) { pick ->
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = SpotSurfaceVariant,
+                    modifier = Modifier.clickable {
+                        onQueryChange(pick)
+                        onSearch()
+                    }
+                ) {
+                    Text(
+                        text = pick,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = SpotTextPrimary,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         if (isSearching) {
@@ -424,7 +470,7 @@ private fun SpotSearchTab(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = SpotGreen)
+                CircularProgressIndicator(color = accentColor)
             }
         } else if (searchResults.isEmpty()) {
             Box(
@@ -442,7 +488,7 @@ private fun SpotSearchTab(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = if (searchQuery.isEmpty()) "Search songs, artists, or albums" else "No tracks found",
+                        text = if (searchQuery.isEmpty()) "Search songs, artists, or albums above" else "No tracks found",
                         color = SpotTextSecondary,
                         style = MaterialTheme.typography.bodyLarge
                     )
@@ -462,6 +508,7 @@ private fun SpotSearchTab(
                         track = track,
                         isCurrentTrack = isCurrent,
                         isPlaying = isCurrent && isPlaying,
+                        accentColor = accentColor,
                         onClick = { onTrackSelect(track) }
                     )
                 }
@@ -476,6 +523,7 @@ private fun SpotTrackItemCard(
     track: MusicTrack,
     isCurrentTrack: Boolean,
     isPlaying: Boolean,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
     Card(
@@ -527,7 +575,7 @@ private fun SpotTrackItemCard(
                         Icon(
                             imageVector = if (isPlaying) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
                             contentDescription = null,
-                            tint = SpotGreen,
+                            tint = accentColor,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -540,7 +588,7 @@ private fun SpotTrackItemCard(
                 Text(
                     text = track.title,
                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (isCurrentTrack) SpotGreenBright else SpotTextPrimary,
+                    color = if (isCurrentTrack) accentColor else SpotTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -565,7 +613,7 @@ private fun SpotTrackItemCard(
     }
 }
 
-// Spot Full Expanded Player Content
+// YDS Full Expanded Player Content
 @Composable
 private fun SpotFullPlayerContent(
     currentTrack: MusicTrack?,
@@ -576,6 +624,7 @@ private fun SpotFullPlayerContent(
     playbackSpeed: Float,
     repeatMode: Int,
     shuffleMode: Boolean,
+    accentColor: Color,
     onPlayPauseToggle: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSkipToNext: () -> Unit,
@@ -612,7 +661,7 @@ private fun SpotFullPlayerContent(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .aspectRatio(1f)
-                .shadow(24.dp, RoundedCornerShape(20.dp), spotColor = SpotGreen)
+                .shadow(24.dp, RoundedCornerShape(20.dp), spotColor = accentColor)
                 .clip(RoundedCornerShape(20.dp))
                 .background(SpotCardBg)
         ) {
@@ -658,11 +707,11 @@ private fun SpotFullPlayerContent(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = { /* Favorite toggle placeholder */ }) {
+            IconButton(onClick = { /* Favorite toggle */ }) {
                 Icon(
                     imageVector = Icons.Rounded.FavoriteBorder,
                     contentDescription = "Favorite",
-                    tint = SpotGreenBright
+                    tint = accentColor
                 )
             }
         }
@@ -682,8 +731,8 @@ private fun SpotFullPlayerContent(
                     userSeekingPos = null
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = SpotGreenBright,
-                    activeTrackColor = SpotGreen,
+                    thumbColor = accentColor,
+                    activeTrackColor = accentColor,
                     inactiveTrackColor = SpotSurfaceVariant
                 )
             )
@@ -716,7 +765,7 @@ private fun SpotFullPlayerContent(
                 Icon(
                     imageVector = Icons.Rounded.Shuffle,
                     contentDescription = "Shuffle",
-                    tint = if (shuffleMode) SpotGreenBright else SpotTextSecondary
+                    tint = if (shuffleMode) accentColor else SpotTextSecondary
                 )
             }
 
@@ -734,7 +783,7 @@ private fun SpotFullPlayerContent(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(SpotGreen)
+                    .background(accentColor)
                     .clickable { onPlayPauseToggle() },
                 contentAlignment = Alignment.Center
             ) {
@@ -767,7 +816,7 @@ private fun SpotFullPlayerContent(
                 Icon(
                     imageVector = if (repeatMode == 2) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                     contentDescription = "Repeat",
-                    tint = if (repeatMode > 0) SpotGreenBright else SpotTextSecondary
+                    tint = if (repeatMode > 0) accentColor else SpotTextSecondary
                 )
             }
         }
@@ -791,7 +840,7 @@ private fun SpotFullPlayerContent(
             ) {
                 Text(
                     text = "${playbackSpeed}x",
-                    color = SpotGreenBright,
+                    color = accentColor,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -815,7 +864,7 @@ private fun SpotFullPlayerContent(
     }
 }
 
-// Persistent Spot Mini Player Bar
+// Persistent Mini Player Bar
 @Composable
 private fun SpotMiniPlayer(
     track: MusicTrack,
@@ -823,6 +872,7 @@ private fun SpotMiniPlayer(
     positionMs: Long,
     durationMs: Long,
     isBuffering: Boolean,
+    accentColor: Color,
     onPlayPauseToggle: () -> Unit,
     onSkipNext: () -> Unit,
     onClick: () -> Unit
@@ -891,7 +941,7 @@ private fun SpotMiniPlayer(
                     if (isBuffering) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = SpotGreen,
+                            color = accentColor,
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -919,7 +969,7 @@ private fun SpotMiniPlayer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(3.dp),
-                color = SpotGreen,
+                color = accentColor,
                 trackColor = SpotSurfaceVariant
             )
         }
@@ -934,6 +984,7 @@ private fun SpotLyricsTab(
     isLyricsLoading: Boolean,
     currentLyricIndex: Int,
     positionMs: Long,
+    accentColor: Color,
     onSeekTo: (Long) -> Unit
 ) {
     if (currentTrack == null) {
@@ -945,7 +996,7 @@ private fun SpotLyricsTab(
 
     if (isLyricsLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = SpotGreen)
+            CircularProgressIndicator(color = accentColor)
         }
         return
     }
@@ -977,7 +1028,7 @@ private fun SpotLyricsTab(
     ) {
         itemsIndexed(lyrics) { index, line ->
             val isCurrent = index == currentLyricIndex
-            val color = if (isCurrent) SpotGreenBright else SpotTextSecondary.copy(alpha = 0.5f)
+            val color = if (isCurrent) accentColor else SpotTextSecondary.copy(alpha = 0.5f)
             val fontSize = if (isCurrent) 24.sp else 18.sp
 
             Text(
@@ -1000,6 +1051,7 @@ private fun SpotLyricsTab(
 private fun SpotQueueTab(
     queue: List<MusicTrack>,
     currentIndex: Int,
+    accentColor: Color,
     onSelectTrack: (Int) -> Unit
 ) {
     if (queue.isEmpty()) {
@@ -1046,7 +1098,7 @@ private fun SpotQueueTab(
                         Text(
                             text = "${index + 1}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = if (isCurrent) SpotGreenBright else SpotTextSecondary,
+                            color = if (isCurrent) accentColor else SpotTextSecondary,
                             modifier = Modifier.width(28.dp)
                         )
 
@@ -1056,7 +1108,7 @@ private fun SpotQueueTab(
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
                                 ),
-                                color = if (isCurrent) SpotGreenBright else SpotTextPrimary,
+                                color = if (isCurrent) accentColor else SpotTextPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1073,7 +1125,7 @@ private fun SpotQueueTab(
                             Icon(
                                 imageVector = Icons.Rounded.Equalizer,
                                 contentDescription = "Playing",
-                                tint = SpotGreenBright,
+                                tint = accentColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
