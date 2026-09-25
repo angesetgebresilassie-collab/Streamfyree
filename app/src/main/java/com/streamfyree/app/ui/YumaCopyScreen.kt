@@ -38,7 +38,6 @@ import coil3.compose.AsyncImage
 import com.streamfyree.app.LyricLine
 import com.streamfyree.app.MusicTrack
 import com.streamfyree.app.MusicViewModel
-import com.streamfyree.app.RepeatMode
 import java.util.Locale
 import kotlin.math.max
 
@@ -214,7 +213,7 @@ private fun MiniPlayer(track: MusicTrack, playing: Boolean, accent: Color, open:
 @Composable
 private fun Player(
     track: MusicTrack?, playing: Boolean, buffering: Boolean, position: Long, duration: Long,
-    accent: Color, speed: Float, repeat: RepeatMode, shuffle: Boolean, back: () -> Unit,
+    accent: Color, speed: Float, repeat: Int, shuffle: Boolean, back: () -> Unit,
     toggle: () -> Unit, seek: (Long) -> Unit, next: () -> Unit, previous: () -> Unit,
     toggleRepeat: () -> Unit, toggleShuffle: () -> Unit, setSpeed: (Float) -> Unit,
     lyrics: () -> Unit, queue: () -> Unit
@@ -262,7 +261,7 @@ private fun Player(
                 }
                 IconButton(next) { Icon(Icons.Rounded.SkipNext, null, tint = TextMain, modifier = Modifier.size(30.dp)) }
                 IconButton(toggleRepeat) { Icon(Icons.Rounded.Repeat, null,
-                    tint = if (repeat != RepeatMode.OFF) accent else TextMuted) }
+                    tint = if (repeat != 0) accent else TextMuted) }
             }
             Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), Arrangement.SpaceBetween) {
                 Text("Speed " + speed + "x", color = TextMuted, fontSize = 12.sp,
