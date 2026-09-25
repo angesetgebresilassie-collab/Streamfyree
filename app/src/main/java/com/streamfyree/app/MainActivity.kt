@@ -16,7 +16,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.streamfyree.app.ui.DebugLogOverlay
-import com.streamfyree.app.ui.StreamfyreeScreen
+import com.streamfyree.app.ui.YumaCopyScreen
 import com.streamfyree.app.ui.YumaTheme
 
 class MainActivity : ComponentActivity() {
@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
             YumaTheme {
                 val vm: MusicViewModel = viewModel()
                 Box {
-                    StreamfyreeScreen(vm)
+                    YumaCopyScreen(vm)
                     DebugLogOverlay(vm)
                 }
             }
