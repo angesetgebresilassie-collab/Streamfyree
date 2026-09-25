@@ -294,7 +294,7 @@ private fun Lyrics(track: MusicTrack?, lines: List<LyricLine>, index: Int, loadi
                 Text(line.text, color = if (i == index) TextMain else TextMuted.copy(alpha = .62f),
                     fontSize = if (i == index) 24.sp else 18.sp,
                     fontWeight = if (i == index) FontWeight.Bold else FontWeight.Medium,
-                    modifier = Modifier.clickable { seek(line.startMs) })
+                    modifier = Modifier.clickable { seek(line.timeMs) })
             }
         }
     }
