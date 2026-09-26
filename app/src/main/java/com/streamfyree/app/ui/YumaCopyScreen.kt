@@ -68,6 +68,8 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val duration by vm.durationMs.collectAsState()
     val queue by vm.queue.collectAsState()
     val currentIndex by vm.currentTrackIndex.collectAsState()
+    val discoverTracks by vm.discoverTracks.collectAsState()
+    val historyTracks by vm.history.collectAsState()
     val lyrics by vm.lyrics.collectAsState()
     val lyricIndex by vm.currentLyricIndex.collectAsState()
     val lyricsLoading by vm.isLyricsLoading.collectAsState()
@@ -93,7 +95,8 @@ fun YumaCopyScreen(vm: MusicViewModel) {
                 Screen.HOME -> Home(query, results, searching, current, playing, accent,
                     vm::onSearchQueryChange, vm::onSearch,
                     { vm.onTrackSelect(it); screen = Screen.PLAYER }, { screen = Screen.PLAYER },
-                    vm::onPlayPauseToggle, screen, { screen = it })
+                    vm::onPlayPauseToggle, screen, { screen = it },
+                    discoverTracks.map { it.toMusicTrack() }, historyTracks.map { it.toMusicTrack() })
                 Screen.PLAYER -> Player(current, playing, buffering, position, duration, accent,
                     speed, repeat, shuffle, { screen = Screen.HOME }, vm::onPlayPauseToggle,
                     vm::onSeekTo, vm::onSkipToNext, vm::onSkipToPrevious, vm::onToggleRepeat,
@@ -113,7 +116,8 @@ private fun Home(
     query: String, results: List<MusicTrack>, searching: Boolean, current: MusicTrack?,
     playing: Boolean, accent: Color, onQuery: (String) -> Unit, onSearch: () -> Unit,
     onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit,
-    activeTab: Screen, onTabSelect: (Screen) -> Unit
+    activeTab: Screen, onTabSelect: (Screen) -> Unit,
+    discover: List<MusicTrack>, recentlyPlayed: List<MusicTrack>
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val chips = listOf("Afrobeats", "Hip-Hop", "Chill", "Pop", "Anime", "Classics")
@@ -162,23 +166,64 @@ private fun Home(
             Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
                 CircularProgressIndicator(color = accent)
             }
-        } else if (results.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.MusicNote, null, tint = accent, modifier = Modifier.size(54.dp))
-                    Spacer(Modifier.height(10.dp))
-                    Text("Find something you want to hear", color = TextMuted)
+        } else if (query.isNotBlank()) {
+            if (results.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.MusicNote, null, tint = accent, modifier = Modifier.size(54.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("No results found", color = TextMuted)
+                    }
+                }
+            } else {
+                LazyColumn(Modifier.weight(1f),
+                    contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, if (current != null) 100.dp else 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(results, key = { it.id }) { track -> TrackRow(track, accent) { onSelect(track) } }
                 }
             }
         } else {
             LazyColumn(Modifier.weight(1f),
-                contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, if (current != null) 100.dp else 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(results, key = { it.id }) { track -> TrackRow(track, accent) { onSelect(track) } }
+                contentPadding = PaddingValues(0.dp, 4.dp, 0.dp, if (current != null) 100.dp else 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (recentlyPlayed.isNotEmpty()) item { FeedRail("Recently played", recentlyPlayed, onSelect) }
+                if (discover.isNotEmpty()) item { FeedRail("Discover", discover, onSelect) }
+                if (recentlyPlayed.isEmpty() && discover.isEmpty()) item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 70.dp), Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.MusicNote, null, tint = accent, modifier = Modifier.size(54.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("Search & discover", color = TextMuted)
+                        }
+                    }
+                }
             }
         }
         current?.let { MiniPlayer(it, playing, accent, openPlayer, playPause) }
         FloatingNavBar(activeTab, onTabSelect)
+    }
+}
+
+@Composable
+private fun FeedRail(title: String, tracks: List<MusicTrack>, onSelect: (MusicTrack) -> Unit) {
+    Column {
+        Text(title, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(tracks, key = { it.id }) { track -> FeedCard(track, onSelect) }
+        }
+    }
+}
+
+@Composable
+private fun FeedCard(track: MusicTrack, onSelect: (MusicTrack) -> Unit) {
+    Column(Modifier.width(128.dp).clickable { onSelect(track) }) {
+        AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
+            modifier = Modifier.size(128.dp).clip(RoundedCornerShape(16.dp)))
+        Spacer(Modifier.height(6.dp))
+        Text(track.title, color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(track.artist ?: "", color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -293,7 +338,7 @@ private fun Player(
             }
             Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
                 AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(28.dp)))
+                    modifier = Modifier.fillMaxWidth(0.7f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)))
             }
             Column(Modifier.padding(top = 18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
