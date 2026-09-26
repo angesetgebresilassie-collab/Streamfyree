@@ -199,35 +199,31 @@ private fun TrackRow(track: MusicTrack, accent: Color, onClick: () -> Unit) {
     }
 }
 
-// Floating mini player with a blurred backdrop of the current track's artwork,
-// tinted white for the frosted-glass look.
+// Floating mini player with a background pulled from the current track's
+// artwork via Palette (dominant/vibrant swatch), not a blur.
 @Composable
 private fun MiniPlayer(track: MusicTrack, playing: Boolean, accent: Color, open: () -> Unit, toggle: () -> Unit) {
-    Box(
+    val bgColor = rememberArtworkDominantColor(track.artworkUrl, defaultColor = GlassStrong)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(12.dp, 8.dp)
             .clip(RoundedCornerShape(22.dp))
+            .background(bgColor)
+            .border(1.dp, Border, RoundedCornerShape(22.dp))
             .clickable(onClick = open)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize().blur(30.dp))
-        Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.16f)))
-        Box(Modifier.matchParentSize().border(1.dp, Border, RoundedCornerShape(22.dp)))
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
-                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(track.title, color = TextMain, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis)
-                Text(track.artist ?: "", color = TextMuted, fontSize = 12.sp, maxLines = 1)
-            }
-            IconButton(toggle) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = accent) }
+            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(track.title, color = TextMain, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            Text(track.artist ?: "", color = TextMuted, fontSize = 12.sp, maxLines = 1)
         }
+        IconButton(toggle) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = accent) }
     }
 }
 
