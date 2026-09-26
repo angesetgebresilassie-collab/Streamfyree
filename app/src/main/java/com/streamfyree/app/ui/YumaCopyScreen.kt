@@ -1,7 +1,6 @@
 package com.streamfyree.app.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,6 +26,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -44,10 +44,15 @@ import kotlin.math.max
 private val Bg = Color(0xFF08090D)
 private val Glass = Color(0x14FFFFFF)
 private val GlassStrong = Color(0x20FFFFFF)
+private val NavGlass = Color(0x33FFFFFF)
 private val Border = Color(0x22FFFFFF)
 private val TextMain = Color(0xFFF7F7F8)
 private val TextMuted = Color(0xA6F7F7F8)
-private val DefaultAccent = Color(0xFFD8BEA6)
+
+// Frosted-glass accent: kept a flat white (rather than artwork-derived) so it
+// reads cleanly against every blurred/translucent surface in the app.
+private val Accent = Color.White
+
 private enum class Screen { HOME, PLAYER, LYRICS, QUEUE }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,8 +76,7 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val shuffle by vm.shuffleMode.collectAsState()
 
     var screen by remember { mutableStateOf(Screen.HOME) }
-    val accent = rememberArtworkDominantColor(current?.artworkUrl, DefaultAccent)
-    val animatedAccent by animateColorAsState(accent, tween(450), label = "accent")
+    val accent = Accent
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         current?.artworkUrl?.let {
@@ -85,19 +89,19 @@ fun YumaCopyScreen(vm: MusicViewModel) {
         AnimatedContent(screen, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
             label = "screen") { s ->
             when (s) {
-                Screen.HOME -> Home(query, results, searching, current, playing, animatedAccent,
+                Screen.HOME -> Home(query, results, searching, current, playing, accent,
                     vm::onSearchQueryChange, vm::onSearch,
                     { vm.onTrackSelect(it); screen = Screen.PLAYER }, { screen = Screen.PLAYER },
-                    vm::onPlayPauseToggle)
-                Screen.PLAYER -> Player(current, playing, buffering, position, duration, animatedAccent,
+                    vm::onPlayPauseToggle, screen, { screen = it })
+                Screen.PLAYER -> Player(current, playing, buffering, position, duration, accent,
                     speed, repeat, shuffle, { screen = Screen.HOME }, vm::onPlayPauseToggle,
                     vm::onSeekTo, vm::onSkipToNext, vm::onSkipToPrevious, vm::onToggleRepeat,
                     vm::onToggleShuffle, vm::onSetPlaybackSpeed,
                     { screen = Screen.LYRICS }, { screen = Screen.QUEUE })
-                Screen.LYRICS -> Lyrics(current, lyrics, lyricIndex, lyricsLoading, animatedAccent,
+                Screen.LYRICS -> Lyrics(current, lyrics, lyricIndex, lyricsLoading, accent,
                     { screen = Screen.PLAYER }, vm::onSeekTo)
-                Screen.QUEUE -> Queue(queue, currentIndex, animatedAccent,
-                    { screen = Screen.PLAYER }, vm::onSelectQueueTrack)
+                Screen.QUEUE -> Queue(queue, currentIndex, accent,
+                    { screen = Screen.PLAYER }, vm::onSelectQueueTrack, screen, { screen = it })
             }
         }
     }
@@ -107,7 +111,8 @@ fun YumaCopyScreen(vm: MusicViewModel) {
 private fun Home(
     query: String, results: List<MusicTrack>, searching: Boolean, current: MusicTrack?,
     playing: Boolean, accent: Color, onQuery: (String) -> Unit, onSearch: () -> Unit,
-    onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit
+    onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit,
+    activeTab: Screen, onTabSelect: (Screen) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val chips = listOf("Afrobeats", "Hip-Hop", "Chill", "Pop", "Anime", "Classics")
@@ -172,6 +177,7 @@ private fun Home(
             }
         }
         current?.let { MiniPlayer(it, playing, accent, openPlayer, playPause) }
+        FloatingNavBar(activeTab, onTabSelect)
     }
 }
 
@@ -193,23 +199,76 @@ private fun TrackRow(track: MusicTrack, accent: Color, onClick: () -> Unit) {
     }
 }
 
+// Floating mini player with a blurred backdrop of the current track's artwork,
+// tinted white for the frosted-glass look.
 @Composable
 private fun MiniPlayer(track: MusicTrack, playing: Boolean, accent: Color, open: () -> Unit, toggle: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp).clip(RoundedCornerShape(22.dp))
-        .background(GlassStrong).border(1.dp, Border, RoundedCornerShape(22.dp))
-        .clickable(onClick = open).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp, 8.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = open)
+    ) {
         AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
-            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(track.title, color = TextMain, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis)
-            Text(track.artist ?: "", color = TextMuted, fontSize = 12.sp, maxLines = 1)
+            modifier = Modifier.matchParentSize().blur(30.dp))
+        Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.16f)))
+        Box(Modifier.matchParentSize().border(1.dp, Border, RoundedCornerShape(22.dp)))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
+                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(track.title, color = TextMain, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+                Text(track.artist ?: "", color = TextMuted, fontSize = 12.sp, maxLines = 1)
+            }
+            IconButton(toggle) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = accent) }
         }
-        IconButton(toggle) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = accent) }
     }
 }
 
+// Floating, rounded, frosted bottom navigation bar. Only shown on the two
+// browsing screens (Home/Queue) — Player and Lyrics stay full-screen, as is
+// standard for a now-playing view.
+@Composable
+private fun FloatingNavBar(active: Screen, onSelect: (Screen) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 40.dp)
+            .navigationBarsPadding()
+            .padding(top = 4.dp, bottom = 10.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .background(NavGlass)
+            .border(1.dp, Border, RoundedCornerShape(32.dp))
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NavBarItem(Icons.Rounded.Home, "Home", active == Screen.HOME) { onSelect(Screen.HOME) }
+        NavBarItem(Icons.Rounded.QueueMusic, "Queue", active == Screen.QUEUE) { onSelect(Screen.QUEUE) }
+    }
+}
+
+@Composable
+private fun NavBarItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, label, tint = if (selected) Color.White else TextMuted)
+    }
+}
+
+// Now Playing screen: full-bleed blurred artwork background behind the content.
 @Composable
 private fun Player(
     track: MusicTrack?, playing: Boolean, buffering: Boolean, position: Long, duration: Long,
@@ -222,52 +281,57 @@ private fun Player(
         Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Nothing playing", color = TextMuted) }
         return
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(back) { Icon(Icons.Rounded.KeyboardArrowDown, "Back", tint = TextMain) }
-            Text("NOW PLAYING", color = TextMuted, fontSize = 11.sp, letterSpacing = 2.sp,
-                modifier = Modifier.weight(1f))
-            IconButton(queue) { Icon(Icons.Rounded.QueueMusic, "Queue", tint = TextMain) }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-            AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(28.dp)))
-        }
-        Column(Modifier.padding(top = 18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(track.title, color = TextMain, fontSize = 23.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(track.artist ?: "Unknown artist", color = TextMuted, fontSize = 15.sp)
+    Box(Modifier.fillMaxSize()) {
+        AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().blur(60.dp))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)))
+        Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp)) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(back) { Icon(Icons.Rounded.KeyboardArrowDown, "Back", tint = TextMain) }
+                Text("NOW PLAYING", color = TextMuted, fontSize = 11.sp, letterSpacing = 2.sp,
+                    modifier = Modifier.weight(1f))
+                IconButton(queue) { Icon(Icons.Rounded.QueueMusic, "Queue", tint = TextMain) }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+                AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(28.dp)))
+            }
+            Column(Modifier.padding(top = 18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(track.title, color = TextMain, fontSize = 23.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(track.artist ?: "Unknown artist", color = TextMuted, fontSize = 15.sp)
+                    }
+                    IconButton(lyrics) { Icon(Icons.Rounded.Subtitles, "Lyrics", tint = accent) }
                 }
-                IconButton(lyrics) { Icon(Icons.Rounded.Subtitles, "Lyrics", tint = accent) }
-            }
-            Slider(value = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
-                onValueChange = { seek((it * max(1L, duration)).toLong()) },
-                colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent,
-                    inactiveTrackColor = GlassStrong))
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                Text(time(position), color = TextMuted, fontSize = 11.sp)
-                Text(if (buffering) "Buffering…" else time(duration), color = TextMuted, fontSize = 11.sp)
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly) {
-                IconButton(toggleShuffle) { Icon(Icons.Rounded.Shuffle, null, tint = if (shuffle) accent else TextMuted) }
-                IconButton(previous) { Icon(Icons.Rounded.SkipPrevious, null, tint = TextMain, modifier = Modifier.size(30.dp)) }
-                FilledIconButton(toggle, Modifier.size(68.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = accent)) {
-                    Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null,
-                        tint = Color.Black, modifier = Modifier.size(34.dp))
+                Slider(value = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
+                    onValueChange = { seek((it * max(1L, duration)).toLong()) },
+                    colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent,
+                        inactiveTrackColor = GlassStrong))
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Text(time(position), color = TextMuted, fontSize = 11.sp)
+                    Text(if (buffering) "Buffering…" else time(duration), color = TextMuted, fontSize = 11.sp)
                 }
-                IconButton(next) { Icon(Icons.Rounded.SkipNext, null, tint = TextMain, modifier = Modifier.size(30.dp)) }
-                IconButton(toggleRepeat) { Icon(Icons.Rounded.Repeat, null,
-                    tint = if (repeat != 0) accent else TextMuted) }
-            }
-            Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), Arrangement.SpaceBetween) {
-                Text("Speed " + speed + "x", color = TextMuted, fontSize = 12.sp,
-                    modifier = Modifier.clickable { setSpeed(if (speed == 1f) 1.25f else 1f) }.padding(8.dp))
-                Text("Lyrics", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = lyrics).padding(8.dp))
-                Text("Queue", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = queue).padding(8.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly) {
+                    IconButton(toggleShuffle) { Icon(Icons.Rounded.Shuffle, null, tint = if (shuffle) accent else TextMuted) }
+                    IconButton(previous) { Icon(Icons.Rounded.SkipPrevious, null, tint = TextMain, modifier = Modifier.size(30.dp)) }
+                    FilledIconButton(toggle, Modifier.size(68.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = accent)) {
+                        Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null,
+                            tint = Color.Black, modifier = Modifier.size(34.dp))
+                    }
+                    IconButton(next) { Icon(Icons.Rounded.SkipNext, null, tint = TextMain, modifier = Modifier.size(30.dp)) }
+                    IconButton(toggleRepeat) { Icon(Icons.Rounded.Repeat, null,
+                        tint = if (repeat != 0) accent else TextMuted) }
+                }
+                Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), Arrangement.SpaceBetween) {
+                    Text("Speed " + speed + "x", color = TextMuted, fontSize = 12.sp,
+                        modifier = Modifier.clickable { setSpeed(if (speed == 1f) 1.25f else 1f) }.padding(8.dp))
+                    Text("Lyrics", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = lyrics).padding(8.dp))
+                    Text("Queue", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = queue).padding(8.dp))
+                }
             }
         }
     }
@@ -301,17 +365,21 @@ private fun Lyrics(track: MusicTrack?, lines: List<LyricLine>, index: Int, loadi
 }
 
 @Composable
-private fun Queue(queue: List<MusicTrack>, current: Int, accent: Color, back: () -> Unit, select: (Int) -> Unit) {
+private fun Queue(
+    queue: List<MusicTrack>, current: Int, accent: Color, back: () -> Unit, select: (Int) -> Unit,
+    activeTab: Screen, onTabSelect: (Screen) -> Unit
+) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(back) { Icon(Icons.Rounded.ArrowBack, null, tint = TextMain) }
             Text("Queue", color = TextMain, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 100.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(queue.size) { i ->
                 val track = queue[i]
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                    .background(if (i == current) accent.copy(.14f) else Glass)
+                    .background(if (i == current) accent.copy(alpha = .14f) else Glass)
                     .clickable { select(i) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
                         modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
@@ -324,6 +392,7 @@ private fun Queue(queue: List<MusicTrack>, current: Int, accent: Color, back: ()
                 }
             }
         }
+        FloatingNavBar(activeTab, onTabSelect)
     }
 }
 
