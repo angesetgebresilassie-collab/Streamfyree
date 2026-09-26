@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -277,6 +278,8 @@ private fun Player(
         Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Nothing playing", color = TextMuted) }
         return
     }
+    val context = LocalContext.current
+    var favorite by remember(track.id) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().blur(60.dp))
@@ -322,11 +325,32 @@ private fun Player(
                     IconButton(toggleRepeat) { Icon(Icons.Rounded.Repeat, null,
                         tint = if (repeat != 0) accent else TextMuted) }
                 }
-                Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), Arrangement.SpaceBetween) {
-                    Text("Speed " + speed + "x", color = TextMuted, fontSize = 12.sp,
-                        modifier = Modifier.clickable { setSpeed(if (speed == 1f) 1.25f else 1f) }.padding(8.dp))
-                    Text("Lyrics", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = lyrics).padding(8.dp))
-                    Text("Queue", color = accent, fontSize = 12.sp, modifier = Modifier.clickable(onClick = queue).padding(8.dp))
+                Row(Modifier.fillMaxWidth().padding(bottom = 18.dp, top = 4.dp), Arrangement.Center) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(GlassStrong)
+                            .border(1.dp, Border, RoundedCornerShape(28.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT,
+                                    "${track.title} — ${track.artist ?: "Unknown artist"}")
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Share track"))
+                        }) { Icon(Icons.Rounded.Share, "Share", tint = TextMain) }
+                        IconButton(onClick = { favorite = !favorite }) {
+                            Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                "Favorite", tint = if (favorite) accent else TextMain)
+                        }
+                        IconButton(onClick = { setSpeed(if (speed == 1f) 1.25f else 1f) }) {
+                            Icon(Icons.Rounded.Speed, "Playback speed ${speed}x", tint = TextMain)
+                        }
+                    }
                 }
             }
         }
