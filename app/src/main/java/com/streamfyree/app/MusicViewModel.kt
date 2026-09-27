@@ -32,6 +32,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val newPipe = NewPipeBridge()
     private val ytDlp = YtDlpBridge()
     private val itunes = ItunesApi()
+    private val downloads = StreamfyreeDownloadManager(app)
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
     private var controllerReady = false
@@ -117,6 +118,18 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _currentLyricIndex = MutableStateFlow(-1)
     val currentLyricIndex: StateFlow<Int> = _currentLyricIndex.asStateFlow()
 
+    private val _downloadedTracks = MutableStateFlow<List<MusicTrack>>(emptyList())
+    val downloadedTracks: StateFlow<List<MusicTrack>> = _downloadedTracks.asStateFlow()
+
+    private val _downloadingTrackId = MutableStateFlow<String?>(null)
+    val downloadingTrackId: StateFlow<String?> = _downloadingTrackId.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0)
+    val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+
+    private val _downloadError = MutableStateFlow<String?>(null)
+    val downloadError: StateFlow<String?> = _downloadError.asStateFlow()
+
     private val _isDebugOverlayVisible = MutableStateFlow(false)
     val isDebugOverlayVisible: StateFlow<Boolean> = _isDebugOverlayVisible.asStateFlow()
 
@@ -127,6 +140,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val prefs = app.streamfyreeDataStore.data.first()
             _library.value = LibraryState(prefs[savedKey].orEmpty().mapNotNull(::decodeTrack))
+            _downloadedTracks.value = downloads.downloadedTracks().map { it.toMusicTrack() }
             val restoredQueue = decodeList(prefs[queueKey])
             _queue.value = restoredQueue
             _musicQueue.value = restoredQueue.map { it.toMusicTrack() }
@@ -372,7 +386,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                val resolved = if (native) {
+                val resolved = downloads.localTrack(track.id) ?: if (native) {
                     DebugLogger.info("YTDLP", "Resolving stream for '${track.artist} — ${track.title}'")
                     val search = ytDlp.findLyricsAndResolve(track.artist, track.title)
                     DebugLogger.info("NEWPIPE", "Resolving fresh audio stream from video=${search.id}")
@@ -479,6 +493,41 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 e.printStackTrace()
             }
         }
+    }
+
+    fun downloadCurrentTrack() {
+        val track = _current.value ?: run {
+            _downloadError.value = "Play a track first."
+            return
+        }
+        downloadTrack(track)
+    }
+
+    fun downloadTrack(track: Track) {
+        if (_downloadingTrackId.value != null) return
+        val stream = track.streamUrl?.takeIf { it.isNotBlank() }
+        if (stream == null) {
+            _downloadError.value = "Resolve and play this track before downloading it."
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            _downloadingTrackId.value = track.id
+            _downloadProgress.value = 0
+            _downloadError.value = null
+            runCatching {
+                downloads.download(track) { progress -> _downloadProgress.value = progress }
+            }.onSuccess {
+                _downloadedTracks.value = downloads.downloadedTracks().map { it.toMusicTrack() }
+            }.onFailure {
+                _downloadError.value = it.message ?: "Download failed"
+            }
+            _downloadingTrackId.value = null
+        }
+    }
+
+    fun deleteDownload(trackId: String) {
+        downloads.delete(trackId)
+        _downloadedTracks.value = downloads.downloadedTracks().map { it.toMusicTrack() }
     }
 
     fun enqueue(track: Track) {
