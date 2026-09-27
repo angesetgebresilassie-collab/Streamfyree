@@ -80,8 +80,6 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val downloaded by vm.downloadedTracks.collectAsState()
     val downloadingId by vm.downloadingTrackId.collectAsState()
     val downloadProgress by vm.downloadProgress.collectAsState()
-    val downloadError by vm.downloadError.collectAsState()
-
     var screen by remember { mutableStateOf(Screen.HOME) }
     val accent = Accent
 
@@ -101,14 +99,15 @@ fun YumaCopyScreen(vm: MusicViewModel) {
                     { vm.onTrackSelect(it); screen = Screen.PLAYER }, { screen = Screen.PLAYER },
                     vm::onPlayPauseToggle, screen, { screen = it },
                     discoverTracks.map { it.toMusicTrack() }, historyTracks.map { it.toMusicTrack() },
-                    downloaded, vm::downloadTrack, vm::deleteDownload)
+                    downloaded)
                 Screen.PLAYER -> Player(current, playing, buffering, position, duration, accent,
                     speed, repeat, shuffle, { screen = Screen.HOME }, vm::onPlayPauseToggle,
                     vm::onSeekTo, vm::onSkipToNext, vm::onSkipToPrevious, vm::onToggleRepeat,
                     vm::onToggleShuffle, vm::onSetPlaybackSpeed,
                     { screen = Screen.LYRICS }, { screen = Screen.QUEUE },
                     downloaded.any { it.id == current?.id }, downloadingId == current?.id,
-                    downloadProgress, vm::downloadCurrentTrack, current?.let { vm::deleteDownload(it.id) } ?: {})
+                    downloadProgress, vm::downloadCurrentTrack,
+                    current?.let { { vm.deleteDownload(it.id) } } ?: {})
                 Screen.LYRICS -> Lyrics(current, lyrics, lyricIndex, lyricsLoading, accent,
                     { screen = Screen.PLAYER }, vm::onSeekTo)
                 Screen.QUEUE -> Queue(queue, currentIndex, accent,
@@ -125,7 +124,7 @@ private fun Home(
     onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit,
     activeTab: Screen, onTabSelect: (Screen) -> Unit,
     discover: List<MusicTrack>, recentlyPlayed: List<MusicTrack>,
-    downloaded: List<MusicTrack>, onDownload: (MusicTrack) -> Unit, onDeleteDownload: (String) -> Unit
+    downloaded: List<MusicTrack>
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val chips = listOf("Afrobeats", "Hip-Hop", "Chill", "Pop", "Anime", "Classics")
@@ -408,7 +407,7 @@ private fun Player(
                         }) {
                             if (downloading) {
                                 CircularProgressIndicator(
-                                    progress = { downloadProgress / 100f },
+                                    progress = downloadProgress / 100f,
                                     modifier = Modifier.size(22.dp),
                                     strokeWidth = 2.dp,
                                     color = accent
