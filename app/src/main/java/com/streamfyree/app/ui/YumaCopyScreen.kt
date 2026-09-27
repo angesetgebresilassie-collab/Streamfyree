@@ -77,6 +77,10 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val speed by vm.playbackSpeed.collectAsState()
     val repeat by vm.repeatMode.collectAsState()
     val shuffle by vm.shuffleMode.collectAsState()
+    val downloaded by vm.downloadedTracks.collectAsState()
+    val downloadingId by vm.downloadingTrackId.collectAsState()
+    val downloadProgress by vm.downloadProgress.collectAsState()
+    val downloadError by vm.downloadError.collectAsState()
 
     var screen by remember { mutableStateOf(Screen.HOME) }
     val accent = Accent
@@ -96,12 +100,15 @@ fun YumaCopyScreen(vm: MusicViewModel) {
                     vm::onSearchQueryChange, vm::onSearch,
                     { vm.onTrackSelect(it); screen = Screen.PLAYER }, { screen = Screen.PLAYER },
                     vm::onPlayPauseToggle, screen, { screen = it },
-                    discoverTracks.map { it.toMusicTrack() }, historyTracks.map { it.toMusicTrack() })
+                    discoverTracks.map { it.toMusicTrack() }, historyTracks.map { it.toMusicTrack() },
+                    downloaded, vm::downloadTrack, vm::deleteDownload)
                 Screen.PLAYER -> Player(current, playing, buffering, position, duration, accent,
                     speed, repeat, shuffle, { screen = Screen.HOME }, vm::onPlayPauseToggle,
                     vm::onSeekTo, vm::onSkipToNext, vm::onSkipToPrevious, vm::onToggleRepeat,
                     vm::onToggleShuffle, vm::onSetPlaybackSpeed,
-                    { screen = Screen.LYRICS }, { screen = Screen.QUEUE })
+                    { screen = Screen.LYRICS }, { screen = Screen.QUEUE },
+                    downloaded.any { it.id == current?.id }, downloadingId == current?.id,
+                    downloadProgress, vm::downloadCurrentTrack, current?.let { vm::deleteDownload(it.id) } ?: {})
                 Screen.LYRICS -> Lyrics(current, lyrics, lyricIndex, lyricsLoading, accent,
                     { screen = Screen.PLAYER }, vm::onSeekTo)
                 Screen.QUEUE -> Queue(queue, currentIndex, accent,
@@ -117,7 +124,8 @@ private fun Home(
     playing: Boolean, accent: Color, onQuery: (String) -> Unit, onSearch: () -> Unit,
     onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit,
     activeTab: Screen, onTabSelect: (Screen) -> Unit,
-    discover: List<MusicTrack>, recentlyPlayed: List<MusicTrack>
+    discover: List<MusicTrack>, recentlyPlayed: List<MusicTrack>,
+    downloaded: List<MusicTrack>, onDownload: (MusicTrack) -> Unit, onDeleteDownload: (String) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val chips = listOf("Afrobeats", "Hip-Hop", "Chill", "Pop", "Anime", "Classics")
@@ -186,6 +194,7 @@ private fun Home(
             LazyColumn(Modifier.weight(1f),
                 contentPadding = PaddingValues(0.dp, 4.dp, 0.dp, if (current != null) 100.dp else 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (downloaded.isNotEmpty()) item { FeedRail("Downloads", downloaded, onSelect) }
                 if (recentlyPlayed.isNotEmpty()) item { FeedRail("Recently played", recentlyPlayed, onSelect) }
                 if (discover.isNotEmpty()) item { FeedRail("Discover", discover, onSelect) }
                 if (recentlyPlayed.isEmpty() && discover.isEmpty()) item {
@@ -317,7 +326,9 @@ private fun Player(
     accent: Color, speed: Float, repeat: Int, shuffle: Boolean, back: () -> Unit,
     toggle: () -> Unit, seek: (Long) -> Unit, next: () -> Unit, previous: () -> Unit,
     toggleRepeat: () -> Unit, toggleShuffle: () -> Unit, setSpeed: (Float) -> Unit,
-    lyrics: () -> Unit, queue: () -> Unit
+    lyrics: () -> Unit, queue: () -> Unit,
+    downloaded: Boolean, downloading: Boolean, downloadProgress: Int,
+    download: () -> Unit, deleteDownload: () -> Unit
 ) {
     if (track == null) {
         Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Nothing playing", color = TextMuted) }
@@ -391,6 +402,24 @@ private fun Player(
                         IconButton(onClick = { favorite = !favorite }) {
                             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 "Favorite", tint = if (favorite) accent else TextMain)
+                        }
+                        IconButton(onClick = {
+                            if (downloaded) deleteDownload() else if (!downloading) download()
+                        }) {
+                            if (downloading) {
+                                CircularProgressIndicator(
+                                    progress = { downloadProgress / 100f },
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = accent
+                                )
+                            } else {
+                                Icon(
+                                    if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
+                                    "Download",
+                                    tint = if (downloaded) accent else TextMain
+                                )
+                            }
                         }
                         IconButton(onClick = { setSpeed(if (speed == 1f) 1.25f else 1f) }) {
                             Icon(Icons.Rounded.Speed, "Playback speed ${speed}x", tint = TextMain)
