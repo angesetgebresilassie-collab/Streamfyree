@@ -18,6 +18,8 @@ class StreamfyreeDownloadManager(context: Context) {
 
     fun isDownloaded(trackId: String): Boolean = audioFile(trackId).isFile && audioFile(trackId).length() > 0L
 
+    fun localTrack(trackId: String): Track? = downloadedTracks().firstOrNull { it.id == trackId }
+
     fun downloadedTracks(): List<Track> = root.listFiles().orEmpty()
         .filter { it.extension == "json" }
         .mapNotNull { file -> runCatching { decode(file.readText()) }.getOrNull() }
