@@ -2,6 +2,7 @@ package com.streamfyree.app
 
 import android.content.Intent
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -28,7 +29,16 @@ class PlaybackService : MediaSessionService() {
             dataSource
         }
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+        // Downloaded tracks are played back from local file:// URIs.
+        // DefaultHttpDataSource only understands http/https and throws
+        // immediately for anything else — this is why downloads would
+        // complete successfully but silently fail to play. Wrapping it in
+        // DefaultDataSource.Factory routes file/content/asset URIs to the
+        // right local data source and falls back to the header-aware HTTP
+        // factory above for streamed tracks.
+        val mediaSourceFactory = DefaultMediaSourceFactory(
+            DefaultDataSource.Factory(this, httpDataSourceFactory)
+        )
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
