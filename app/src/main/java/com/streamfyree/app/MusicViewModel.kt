@@ -3,7 +3,10 @@ package com.streamfyree.app
 import android.app.Application
 import android.content.ComponentName
 import android.net.Uri
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -40,6 +43,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val savedKey = stringSetPreferencesKey("saved_tracks")
     private val queueKey = stringPreferencesKey("queue_json")
     private val historyKey = stringPreferencesKey("history_json")
+    private val accentColorKey = intPreferencesKey("accent_color")
 
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state
@@ -133,6 +137,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _isDebugOverlayVisible = MutableStateFlow(false)
     val isDebugOverlayVisible: StateFlow<Boolean> = _isDebugOverlayVisible.asStateFlow()
 
+    // User-customizable accent color, persisted across launches.
+    private val _accentColor = MutableStateFlow(Color.White)
+    val accentColor: StateFlow<Color> = _accentColor.asStateFlow()
+
     val logs = DebugLogger.logs
 
     init {
@@ -145,6 +153,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _queue.value = restoredQueue
             _musicQueue.value = restoredQueue.map { it.toMusicTrack() }
             _history.value = decodeList(prefs[historyKey]).take(20)
+            prefs[accentColorKey]?.let { _accentColor.value = Color(it) }
         }
         refreshDiscover()
         loadPodcasts()
@@ -528,6 +537,18 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteDownload(trackId: String) {
         downloads.delete(trackId)
         _downloadedTracks.value = downloads.downloadedTracks().map { it.toMusicTrack() }
+    }
+
+    fun clearAllDownloads() {
+        downloads.clearAll()
+        _downloadedTracks.value = emptyList()
+    }
+
+    fun setAccentColor(color: Color) {
+        _accentColor.value = color
+        viewModelScope.launch {
+            getApplication<Application>().streamfyreeDataStore.edit { it[accentColorKey] = color.toArgb() }
+        }
     }
 
     fun enqueue(track: Track) {
