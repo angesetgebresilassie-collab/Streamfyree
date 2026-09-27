@@ -50,11 +50,20 @@ private val Border = Color(0x22FFFFFF)
 private val TextMain = Color(0xFFF7F7F8)
 private val TextMuted = Color(0xA6F7F7F8)
 
-// Frosted-glass accent: kept a flat white (rather than artwork-derived) so it
-// reads cleanly against every blurred/translucent surface in the app.
-private val Accent = Color.White
+// Preset accent colors offered on the Settings page. The first entry is the
+// original flat-white accent, kept as the default so existing installs don't
+// change look until someone opts into a color.
+private val AccentPresets = listOf(
+    Color.White,
+    Color(0xFF1DB954), // green
+    Color(0xFFE83B8F), // pink
+    Color(0xFF3B82F6), // blue
+    Color(0xFFF59E0B), // amber
+    Color(0xFFEF4444), // red
+    Color(0xFF8B5CF6)  // violet
+)
 
-private enum class Screen { HOME, PLAYER, LYRICS, QUEUE }
+private enum class Screen { HOME, PLAYER, LYRICS, QUEUE, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +90,8 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val downloadingId by vm.downloadingTrackId.collectAsState()
     val downloadProgress by vm.downloadProgress.collectAsState()
     var screen by remember { mutableStateOf(Screen.HOME) }
-    val accent = Accent
+    // Customizable accent color, set from the Settings page and persisted by the ViewModel.
+    val accent by vm.accentColor.collectAsState()
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         current?.artworkUrl?.let {
@@ -112,6 +122,9 @@ fun YumaCopyScreen(vm: MusicViewModel) {
                     { screen = Screen.PLAYER }, vm::onSeekTo)
                 Screen.QUEUE -> Queue(queue, currentIndex, accent,
                     { screen = Screen.PLAYER }, vm::onSelectQueueTrack, screen, { screen = it })
+                Screen.SETTINGS -> Settings(downloaded, accent,
+                    { screen = Screen.HOME }, vm::setAccentColor, vm::deleteDownload, vm::clearAllDownloads,
+                    screen, { screen = it })
             }
         }
     }
@@ -135,8 +148,9 @@ private fun Home(
                 Text("Good music, beautifully played.", color = TextMuted, fontSize = 13.sp)
             }
             Box(Modifier.size(42.dp).clip(CircleShape).background(GlassStrong)
-                .border(1.dp, Border, CircleShape), Alignment.Center) {
-                Icon(Icons.Rounded.GraphicEq, null, tint = accent)
+                .border(1.dp, Border, CircleShape)
+                .clickable { onTabSelect(Screen.SETTINGS) }, Alignment.Center) {
+                Icon(Icons.Rounded.Settings, "Settings", tint = accent)
             }
         }
         OutlinedTextField(
@@ -281,15 +295,15 @@ private fun MiniPlayer(track: MusicTrack, playing: Boolean, accent: Color, open:
     }
 }
 
-// Floating, rounded, frosted bottom navigation bar. Only shown on the two
-// browsing screens (Home/Queue) — Player and Lyrics stay full-screen, as is
+// Floating, rounded, frosted bottom navigation bar shown on the browsing
+// screens (Home/Queue/Settings) — Player and Lyrics stay full-screen, as is
 // standard for a now-playing view.
 @Composable
 private fun FloatingNavBar(active: Screen, onSelect: (Screen) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 40.dp)
+            .padding(horizontal = 28.dp)
             .navigationBarsPadding()
             .padding(top = 4.dp, bottom = 10.dp)
             .clip(RoundedCornerShape(32.dp))
@@ -301,6 +315,7 @@ private fun FloatingNavBar(active: Screen, onSelect: (Screen) -> Unit) {
     ) {
         NavBarItem(Icons.Rounded.Home, "Home", active == Screen.HOME) { onSelect(Screen.HOME) }
         NavBarItem(Icons.Rounded.QueueMusic, "Queue", active == Screen.QUEUE) { onSelect(Screen.QUEUE) }
+        NavBarItem(Icons.Rounded.Settings, "Settings", active == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }
     }
 }
 
@@ -311,7 +326,7 @@ private fun NavBarItem(icon: ImageVector, label: String, selected: Boolean, onCl
             .clip(RoundedCornerShape(24.dp))
             .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, label, tint = if (selected) Color.White else TextMuted)
@@ -482,6 +497,92 @@ private fun Queue(
                         Text(track.artist ?: "", color = TextMuted, fontSize = 12.sp)
                     }
                     if (i == current) Icon(Icons.Rounded.Equalizer, null, tint = accent)
+                }
+            }
+        }
+        FloatingNavBar(activeTab, onTabSelect)
+    }
+}
+
+// Settings screen: accent color customization + a manager for downloaded
+// (offline-playable) tracks, reachable from Home's gear icon or the nav bar.
+@Composable
+private fun Settings(
+    downloaded: List<MusicTrack>,
+    accent: Color,
+    back: () -> Unit,
+    setAccent: (Color) -> Unit,
+    deleteDownload: (String) -> Unit,
+    clearDownloads: () -> Unit,
+    activeTab: Screen,
+    onTabSelect: (Screen) -> Unit
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(back) { Icon(Icons.Rounded.ArrowBack, null, tint = TextMain) }
+            Text("Settings", color = TextMain, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+        LazyColumn(
+            Modifier.weight(1f),
+            contentPadding = PaddingValues(20.dp, 4.dp, 20.dp, 100.dp),
+            verticalArrangement = Arrangement.spacedBy(26.dp)
+        ) {
+            item {
+                Column {
+                    Text("Appearance", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Pick an accent color used across the player.", color = TextMuted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AccentPresets.forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (color == accent) 3.dp else 1.dp,
+                                        color = if (color == accent) Color.White else Border,
+                                        shape = CircleShape
+                                    )
+                                    .clickable { setAccent(color) }
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Downloads", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Tracks saved for offline playback.", color = TextMuted, fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp))
+                    }
+                    if (downloaded.isNotEmpty()) {
+                        Text("Clear all", color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable(onClick = clearDownloads))
+                    }
+                }
+            }
+            if (downloaded.isEmpty()) {
+                item { Text("No downloads yet.", color = TextMuted, fontSize = 13.sp) }
+            } else {
+                items(downloaded, key = { it.id }) { track ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Glass)
+                        .border(1.dp, Border, RoundedCornerShape(18.dp)).padding(9.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(track.artworkUrl, null, contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(track.title, color = TextMain, fontWeight = FontWeight.SemiBold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(track.artist ?: "Unknown artist", color = TextMuted, fontSize = 12.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton({ deleteDownload(track.id) }) {
+                            Icon(Icons.Rounded.Delete, "Remove download", tint = TextMuted)
+                        }
+                    }
                 }
             }
         }
