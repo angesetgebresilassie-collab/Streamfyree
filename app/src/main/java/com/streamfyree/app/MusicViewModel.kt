@@ -33,8 +33,8 @@ private val Application.streamfyreeDataStore by preferencesDataStore("streamfyre
 
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val newPipe = NewPipeBridge()
-    private val ytDlp = YtDlpBridge()
     private val itunes = ItunesApi()
+    private val spotify = SpotifyApi()
     private val downloads = StreamfyreeDownloadManager(app)
     private val controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
@@ -61,6 +61,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     val discoverTracks: StateFlow<List<Track>> = _discoverTracks
     private val _podcastTracks = MutableStateFlow<List<Track>>(emptyList())
     val podcastTracks: StateFlow<List<Track>> = _podcastTracks
+    private val _spotifyPlaylists = MutableStateFlow<List<Playlist>>(emptyList())
+    val spotifyPlaylists: StateFlow<List<Playlist>> = _spotifyPlaylists.asStateFlow()
     private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
     val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes
     private var sleepTimerJob: kotlinx.coroutines.Job? = null
@@ -157,6 +159,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
         refreshDiscover()
         loadPodcasts()
+        loadSpotifyFeed()
 
         // Progress polling loop
         viewModelScope.launch {
@@ -318,6 +321,54 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Populates the "From Spotify" feed with a handful of public playlists.
+     * Quietly does nothing if Spotify credentials aren't configured — the
+     * rest of the app is unaffected either way.
+     */
+    fun loadSpotifyFeed() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pool = listOf("today's top hits", "afrobeats", "hip hop", "pop rising", "chill hits", "r&b", "amapiano", "rock classics")
+            runCatching {
+                pool.shuffled().take(3).flatMap { term -> spotify.searchPlaylists(term, limit = 6) }
+            }.onSuccess { playlists ->
+                _spotifyPlaylists.value = playlists.distinctBy { it.id }.shuffled().take(20)
+            }.onFailure {
+                DebugLogger.error("SPOTIFY", "Failed to load Spotify feed: ${it.message}", it)
+            }
+        }
+    }
+
+    /**
+     * Loads a Spotify playlist's full track list and starts playing it.
+     * Track metadata (title/artist/artwork) comes from Spotify; the audio
+     * itself is still resolved through our own NewPipe/YouTube backend,
+     * exactly like every other track in the app.
+     */
+    fun playSpotifyPlaylist(playlist: Playlist) {
+        _state.value = _state.value.copy(loading = true, error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { spotify.getPlaylist(playlist.id) }
+                .onSuccess { full ->
+                    if (full.tracks.isEmpty()) {
+                        _state.value = _state.value.copy(loading = false, error = "This Spotify playlist has no tracks")
+                        return@onSuccess
+                    }
+                    _queue.value = full.tracks
+                    _musicQueue.value = full.tracks.map { it.toMusicTrack() }
+                    _currentTrackIndex.value = 0
+                    persistQueue(full.tracks)
+                    withContext(Dispatchers.Main) { play(full.tracks.first()) }
+                }
+                .onFailure {
+                    val err = it.message ?: "Failed to load Spotify playlist"
+                    DebugLogger.error("SPOTIFY", err, it)
+                    _state.value = _state.value.copy(loading = false, error = err)
+                    _errorMessage.value = err
+                }
+        }
+    }
+
     fun playMix(query: String) {
         _state.value = _state.value.copy(loading = true, error = null)
         viewModelScope.launch(Dispatchers.IO) {
@@ -364,14 +415,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun play(track: Track) {
-        when (_mode.value) {
-            PlaybackMode.ONLINE -> resolveAndPlay(track, true)
-            PlaybackMode.NATIVE -> resolveAndPlay(track, true)
-            PlaybackMode.AUTO -> resolveAndPlay(track, true)
-        }
+        resolveAndPlay(track)
     }
 
-    private fun resolveAndPlay(track: Track, native: Boolean) {
+    private fun resolveAndPlay(track: Track) {
         _current.value = track
         _currentTrack.value = track.toMusicTrack()
         loadLyricsForTrack(track)
@@ -395,48 +442,20 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                val resolved = downloads.localTrack(track.id) ?: if (native) {
-                    DebugLogger.info("YTDLP", "Resolving stream for '${track.artist} — ${track.title}'")
-                    val search = ytDlp.findLyricsAndResolve(track.artist, track.title)
-                    DebugLogger.info("NEWPIPE", "Resolving fresh audio stream from video=${search.id}")
-                    val r = runCatching {
-                        newPipe.resolve(search.youtubeUrl, search.artist, search.title)
-                    }.onFailure {
-                        DebugLogger.error("NEWPIPE", "NewPipe extraction failed; using yt-dlp audio URL fallback: ${it.message}", it)
-                    }.getOrNull()
-
-                    if (r != null && r.streamUrl.isNotBlank()) {
-                        DebugLogger.info("NEWPIPE", "Resolved audio-only stream; URL present=${r.streamUrl.isNotBlank()}")
-                        track.copy(
-                            id = r.id,
-                            title = track.title.ifBlank { r.title },
-                            artist = track.artist.ifBlank { r.artist },
-                            album = track.album,
-                            artwork = track.artwork,
-                            youtubeUrl = r.youtubeUrl,
-                            streamUrl = r.streamUrl,
-                            durationMs = if (r.durationMs > 0) r.durationMs else track.durationMs,
-                            lyricVideo = true
-                        )
-                    } else {
-                        DebugLogger.info("YTDLP", "Using yt-dlp fallback stream for video=${search.id}")
-                        PlaybackRequestHeaders.set(search.httpHeaders)
-                        track.copy(
-                            id = search.id,
-                            title = track.title.ifBlank { search.title },
-                            artist = track.artist.ifBlank { search.artist },
-                            album = track.album,
-                            artwork = track.artwork,
-                            youtubeUrl = search.youtubeUrl,
-                            streamUrl = search.streamUrl,
-                            durationMs = if (search.durationMs > 0) search.durationMs else track.durationMs,
-                            lyricVideo = true
-                        )
-                    }
-                } else {
+                // Already downloaded? Play straight from disk, no network resolution needed.
+                val resolved = downloads.localTrack(track.id) ?: run {
+                    DebugLogger.info("NEWPIPE", "Searching YouTube for '${track.artist} — ${track.title}'")
+                    val r = newPipe.searchAndResolve(track.artist, track.title)
+                    DebugLogger.info("NEWPIPE", "Resolved audio-only stream for video=${r.id}")
                     track.copy(
-                        youtubeUrl = "https://www.youtube.com/results?search_query=" +
-                            java.net.URLEncoder.encode("${track.artist} ${track.title} lyrics", "UTF-8"),
+                        id = r.id,
+                        title = track.title.ifBlank { r.title },
+                        artist = track.artist.ifBlank { r.artist },
+                        album = track.album,
+                        artwork = track.artwork,
+                        youtubeUrl = r.youtubeUrl,
+                        streamUrl = r.streamUrl,
+                        durationMs = if (r.durationMs > 0) r.durationMs else track.durationMs,
                         lyricVideo = true
                     )
                 }
