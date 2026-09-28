@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.chaquo.python")
 }
 
 android {
@@ -13,16 +12,32 @@ android {
         applicationId = "com.streamfyree.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
 
+        // No longer tied to Chaquopy's supported ABI set now that the
+        // Python/yt-dlp runtime is gone, so widen device coverage.
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
         }
+
+        // Spotify Web API (Client Credentials flow — app-only, no user login)
+        // used for playlist search/browsing. Get a free Client ID/Secret at
+        // https://developer.spotify.com/dashboard and set them below via
+        // gradle.properties (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET) or as
+        // environment variables of the same name. Left blank, the Spotify
+        // feed simply stays empty — playback of everything else is unaffected.
+        val spotifyClientId = (project.findProperty("SPOTIFY_CLIENT_ID") as? String)
+            ?: System.getenv("SPOTIFY_CLIENT_ID") ?: ""
+        val spotifyClientSecret = (project.findProperty("SPOTIFY_CLIENT_SECRET") as? String)
+            ?: System.getenv("SPOTIFY_CLIENT_SECRET") ?: ""
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
+        buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"$spotifyClientSecret\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -31,15 +46,6 @@ android {
     }
 
     kotlinOptions { jvmTarget = "17" }
-}
-
-chaquopy {
-    defaultConfig {
-        version = "3.10"
-        pip {
-            install("yt-dlp")
-        }
-    }
 }
 
 dependencies {
