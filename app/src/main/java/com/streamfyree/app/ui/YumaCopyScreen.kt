@@ -39,6 +39,7 @@ import coil3.compose.AsyncImage
 import com.streamfyree.app.LyricLine
 import com.streamfyree.app.MusicTrack
 import com.streamfyree.app.MusicViewModel
+import com.streamfyree.app.Playlist
 import java.util.Locale
 import kotlin.math.max
 
@@ -79,6 +80,7 @@ fun YumaCopyScreen(vm: MusicViewModel) {
     val currentIndex by vm.currentTrackIndex.collectAsState()
     val discoverTracks by vm.discoverTracks.collectAsState()
     val historyTracks by vm.history.collectAsState()
+    val spotifyPlaylists by vm.spotifyPlaylists.collectAsState()
     val lyrics by vm.lyrics.collectAsState()
     val lyricIndex by vm.currentLyricIndex.collectAsState()
     val lyricsLoading by vm.isLyricsLoading.collectAsState()
@@ -109,7 +111,8 @@ fun YumaCopyScreen(vm: MusicViewModel) {
                     { vm.onTrackSelect(it); screen = Screen.PLAYER }, { screen = Screen.PLAYER },
                     vm::onPlayPauseToggle, screen, { screen = it },
                     discoverTracks.map { it.toMusicTrack() }, historyTracks.map { it.toMusicTrack() },
-                    downloaded)
+                    downloaded, spotifyPlaylists,
+                    { vm.playSpotifyPlaylist(it); screen = Screen.PLAYER })
                 Screen.PLAYER -> Player(current, playing, buffering, position, duration, accent,
                     speed, repeat, shuffle, { screen = Screen.HOME }, vm::onPlayPauseToggle,
                     vm::onSeekTo, vm::onSkipToNext, vm::onSkipToPrevious, vm::onToggleRepeat,
@@ -137,7 +140,8 @@ private fun Home(
     onSelect: (MusicTrack) -> Unit, openPlayer: () -> Unit, playPause: () -> Unit,
     activeTab: Screen, onTabSelect: (Screen) -> Unit,
     discover: List<MusicTrack>, recentlyPlayed: List<MusicTrack>,
-    downloaded: List<MusicTrack>
+    downloaded: List<MusicTrack>, spotifyPlaylists: List<Playlist>,
+    onSpotifyPlaylistSelect: (Playlist) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val chips = listOf("Afrobeats", "Hip-Hop", "Chill", "Pop", "Anime", "Classics")
@@ -209,8 +213,9 @@ private fun Home(
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (downloaded.isNotEmpty()) item { FeedRail("Downloads", downloaded, onSelect) }
                 if (recentlyPlayed.isNotEmpty()) item { FeedRail("Recently played", recentlyPlayed, onSelect) }
+                if (spotifyPlaylists.isNotEmpty()) item { PlaylistFeedRail("From Spotify", spotifyPlaylists, onSpotifyPlaylistSelect) }
                 if (discover.isNotEmpty()) item { FeedRail("Discover", discover, onSelect) }
-                if (recentlyPlayed.isEmpty() && discover.isEmpty()) item {
+                if (recentlyPlayed.isEmpty() && discover.isEmpty() && spotifyPlaylists.isEmpty()) item {
                     Box(Modifier.fillMaxWidth().padding(vertical = 70.dp), Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.MusicNote, null, tint = accent, modifier = Modifier.size(54.dp))
@@ -246,6 +251,39 @@ private fun FeedCard(track: MusicTrack, onSelect: (MusicTrack) -> Unit) {
         Text(track.title, color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(track.artist ?: "", color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// Feed rail for Spotify playlists on Home. Tapping a card loads that
+// playlist's full track list from Spotify and starts playing it — the audio
+// itself is still resolved through our own NewPipe/YouTube backend.
+@Composable
+private fun PlaylistFeedRail(title: String, playlists: List<Playlist>, onSelect: (Playlist) -> Unit) {
+    Column {
+        Text(title, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(playlists, key = { it.id }) { playlist -> PlaylistFeedCard(playlist, onSelect) }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistFeedCard(playlist: Playlist, onSelect: (Playlist) -> Unit) {
+    Column(Modifier.width(128.dp).clickable { onSelect(playlist) }) {
+        Box(Modifier.size(128.dp).clip(RoundedCornerShape(16.dp)).background(Glass)) {
+            if (playlist.artwork != null) {
+                AsyncImage(playlist.artwork, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    Icon(Icons.Rounded.QueueMusic, null, tint = TextMuted, modifier = Modifier.size(36.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(playlist.title, color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(playlist.subtitle, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
