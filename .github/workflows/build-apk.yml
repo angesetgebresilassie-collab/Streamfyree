@@ -27,11 +27,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Python 3.10 for Chaquopy
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
       - name: Setup Gradle 8.11.1
         run: |
           curl --fail --retry 8 --retry-delay 5 --retry-all-errors -L https://services.gradle.org/distributions/gradle-8.11.1-bin.zip -o /tmp/gradle.zip
@@ -45,6 +40,8 @@ jobs:
       - name: Build debug APK
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx3072m" -Dfile.encoding=UTF-8
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: gradle --no-daemon --debug --stacktrace --warning-mode all :app:assembleDebug
 
       - name: Find APK
