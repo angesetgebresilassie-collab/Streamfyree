@@ -4,12 +4,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request as OkHttpRequest
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
+import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -23,11 +26,14 @@ data class NewPipeResult(
 )
 
 /**
- * Primary YouTube resolver.
+ * Sole YouTube resolver (search + audio resolution).
  *
- * NewPipe Extractor parses YouTube's current web/internal responses and exposes
- * separate audio streams. We deliberately choose AudioStream only, so the
- * player never receives a video-only URL.
+ * NewPipe Extractor parses YouTube's current web/internal responses directly,
+ * with no external process or bundled runtime required. It exposes separate
+ * audio streams, so the player never receives a video-only URL. This used to
+ * share duties with a yt-dlp/Chaquopy Python bridge that only searched for a
+ * candidate video; that bridge has been retired in favor of NewPipe's own
+ * search, which has proven to be the reliable path end-to-end.
  */
 class NewPipeBridge {
     companion object {
@@ -49,8 +55,50 @@ class NewPipeBridge {
                 initialized = true
             }
         }
+
+        // Ports the same "which result is actually a clean lyric/audio video"
+        // heuristic that used to live in the yt-dlp search bridge, so search
+        // quality doesn't regress now that it's gone.
+        private fun tokens(value: String): Set<String> =
+            Regex("[\\w']+").findAll(value.lowercase())
+                .map { it.value }
+                .filter { it.length > 1 }
+                .toSet()
+
+        private fun score(candidateTitle: String, artist: String, title: String): Int {
+            val low = candidateTitle.lowercase()
+            var s = 0
+            if ("lyrics" in low || "lyric" in low) s += 100
+            if ("official lyric" in low) s += 35
+            if ("audio" in low) s += 10
+            if ("visualizer" in low) s += 5
+            if ("karaoke" in low) s -= 30
+            if ("cover" in low) s -= 20
+            if ("reaction" in low) s -= 50
+            s += 8 * tokens(title).intersect(tokens(candidateTitle)).size
+            s += 6 * tokens(artist).intersect(tokens(candidateTitle)).size
+            return s
+        }
     }
 
+    /** Searches YouTube for the best lyric/audio video for [artist] — [title], then resolves it. */
+    fun searchAndResolve(artist: String, title: String): NewPipeResult {
+        ensureInitialized()
+        val service = ServiceList.YouTube
+        val query = "$artist $title lyrics"
+
+        val queryHandler = service.searchQHFactory.fromQuery(query, listOf("videos"), "")
+        val searchInfo = SearchInfo.getInfo(service, queryHandler)
+        val candidates = searchInfo.relatedItems.filterIsInstance<StreamInfoItem>()
+        if (candidates.isEmpty()) throw IOException("No YouTube results for \"$query\"")
+
+        val best = candidates.maxByOrNull { score(it.name.orEmpty(), artist, title) }
+            ?: throw IOException("No YouTube results for \"$query\"")
+
+        return resolve(best.url, artist, title)
+    }
+
+    /** Resolves a known YouTube URL directly to a playable audio stream. */
     fun resolve(youtubeUrl: String, fallbackArtist: String, fallbackTitle: String): NewPipeResult {
         ensureInitialized()
 
